@@ -3,6 +3,13 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="app-icons/icon-180.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Haushalt">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="theme-color" content="#14201c">
 <title>Haushaltsbuch</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -317,6 +324,17 @@ dialog h3 { margin: 0; font-family: var(--font-display); font-stretch: 112%; fon
       <ul class="recur" id="recur"></ul>
       <p class="hint">Stimmt eine Kategorie nicht, ändere sie direkt in der Liste. Die App merkt sich das für alle Buchungen beim gleichen Händler.</p>
     </div>
+  </section>
+
+  <section class="card" id="backup" hidden>
+    <h2>Datensicherung</h2>
+    <p class="hint">Deine Daten liegen nur auf diesem Gerät. Speichere ab und zu eine Sicherung, zum Beispiel in iCloud Drive. Mit derselben Datei überträgst du deine Daten auch auf ein anderes Gerät.</p>
+    <div class="actions">
+      <button class="btn" id="exportBtn">Sicherung speichern</button>
+      <label class="btn" for="importIn" style="display:inline-flex;align-items:center">Sicherung laden</label>
+      <input type="file" id="importIn" accept=".json,application/json" hidden>
+    </div>
+    <p class="status" id="backupStatus" role="status"></p>
   </section>
 
   <p class="foot">Krankenkasse: Jahreskosten = 12 × Monatsprämie + Franchise + 10 % Selbstbehalt auf die Kosten über der Franchise (höchstens CHF 700 pro Jahr). Spitalbeitrag, Unfalldeckung und Zusatzversicherungen sind nicht berücksichtigt. Die Prämien in den Beispielen sind ungefähre Werte und keine echte Offerte.</p>
@@ -1008,6 +1026,38 @@ dialog h3 { margin: 0; font-family: var(--font-display); font-stretch: 112%; fon
     if (S.kk.example) S.kk = { name: '', premiums: {}, costs: 1000, example: false };
     save(); renderKKInputs(); renderAll();
   });
+
+  // Datensicherung (nur ausserhalb der Vorschau, dort sind Downloads gesperrt)
+  let framed = true;
+  try { framed = window.self !== window.top; } catch (_) {}
+  $('backup').hidden = framed;
+  $('exportBtn').addEventListener('click', () => {
+    const blob = new Blob([JSON.stringify({ app: 'haushaltsbuch', version: 1, saved: new Date().toISOString(), data: S }, null, 2)], { type: 'application/json' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `haushaltsbuch-sicherung-${iso(today())}.json`;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(a.href), 5000);
+    $('backupStatus').className = 'status ok'; $('backupStatus').textContent = 'Sicherung erstellt.';
+  });
+  $('importIn').addEventListener('change', async e => {
+    const f = e.target.files[0]; if (!f) return;
+    const st = $('backupStatus');
+    try {
+      const j = JSON.parse(await f.text());
+      const d = j && j.app === 'haushaltsbuch' ? j.data : null;
+      if (!d || !d.income || !d.expenses || !d.abos || !d.kk) throw new Error();
+      S = d; S.tx ||= []; S.rules ||= {};
+      save(); renderKKInputs(); renderAll();
+      st.className = 'status ok'; st.textContent = `Sicherung vom ${fmtDate(new Date(j.saved))} geladen.`;
+    } catch (_) {
+      st.className = 'status bad'; st.textContent = 'Diese Datei ist keine Sicherung des Haushaltsbuchs.';
+    }
+    e.target.value = '';
+  });
+  if ('serviceWorker' in navigator && location.protocol === 'https:' && !framed) {
+    navigator.serviceWorker.register('sw.js').catch(() => {});
+  }
 
   // Start
   const stored = load();
