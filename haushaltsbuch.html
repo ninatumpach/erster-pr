@@ -114,7 +114,7 @@ button.row:hover { background: var(--soft); }
 
 /* Balken */
 .bars { display: grid; gap: 10px; }
-.bar { display: grid; grid-template-columns: minmax(84px, 30%) minmax(0, 1fr) auto; gap: 10px; align-items: center; font-size: 13px; }
+.bar { display: grid; grid-template-columns: minmax(84px, 30%) minmax(0, 1fr) 9.5em; gap: 10px; align-items: center; font-size: 13px; }
 .bar .lbl { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .bar .track { display: flex; gap: 2px; height: 16px; align-items: stretch; }
 .bar .seg { height: 100%; min-width: 2px; background: var(--c); }
@@ -166,6 +166,32 @@ dialog h3 { margin: 0; font-family: var(--font-display); font-stretch: 112%; fon
 .actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .actions .spacer { flex: 1; }
 .err { color: var(--bad); font-size: 13px; margin: 0; min-height: 1em; }
+/* Kontoauszug */
+.drop { min-width: 0; border: 2px dashed var(--line); border-radius: var(--radius); padding: 18px; display: grid; gap: 8px; justify-items: start; background: var(--bg); }
+.drop.over { border-color: var(--s1); }
+.drop input[type=file] { width: 100%; min-width: 0; }
+.status { font-size: 13px; margin: 0; }
+.status.ok { color: var(--good); } .status.bad { color: var(--bad); }
+.toolbar { display: flex; flex-wrap: wrap; gap: 10px; align-items: end; justify-content: space-between; }
+.toolbar .field { flex: 1 1 140px; }
+.tx { display: grid; grid-template-columns: 52px minmax(0, 1fr) auto; gap: 2px 10px; align-items: center; padding: 8px 2px; }
+.tx + .tx { border-top: 1px solid var(--line); }
+.tx .d { font-family: var(--font-mono); font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; grid-row: span 2; align-self: start; padding-top: 2px; }
+.tx .m { font-weight: 600; overflow-wrap: anywhere; }
+.tx .a { font-family: var(--font-mono); font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; grid-row: span 2; align-self: start; }
+.tx .a.in { color: var(--good); }
+.tx select { font-size: 12.5px; border: 1px solid var(--line); border-radius: 4px; background: var(--bg); padding: 2px 6px; max-width: 100%; justify-self: start; }
+.txlist { max-height: 640px; overflow-y: auto; }
+.bar .track.cmp { position: relative; background: var(--soft); border-radius: 4px; }
+.bar .track.cmp .seg { border-radius: 4px; }
+.bar .track.cmp .mark { position: absolute; top: -3px; bottom: -3px; width: 2px; background: var(--ink); }
+.bar.over .val { color: var(--bad); font-weight: 600; }
+.sums { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.sums div { display: grid; gap: 2px; }
+.sums .k { font-size: 11.5px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.sums .v { font-family: var(--font-mono); font-size: 18px; font-weight: 600; font-variant-numeric: tabular-nums; }
+.recur { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; font-size: 13.5px; }
+.recur li { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 6px 10px; align-items: center; }
 .foot { font-size: 12px; color: var(--muted); max-width: 90ch; }
 </style>
 </head>
@@ -196,6 +222,7 @@ dialog h3 { margin: 0; font-family: var(--font-display); font-stretch: 112%; fon
     <button class="tab" role="tab" id="t-budget" data-tab="budget">Budget</button>
     <button class="tab" role="tab" id="t-abos" data-tab="abos">Abos <span class="cnt" id="aboCnt"></span></button>
     <button class="tab" role="tab" id="t-krankenkasse" data-tab="krankenkasse">Krankenkasse</button>
+    <button class="tab" role="tab" id="t-konto" data-tab="konto">Kontoauszug <span class="cnt" id="txCnt"></span></button>
   </nav>
 
   <!-- Budget -->
@@ -263,6 +290,35 @@ dialog h3 { margin: 0; font-family: var(--font-display); font-stretch: 112%; fon
     </div>
   </section>
 
+  <!-- Kontoauszug -->
+  <section class="panel" id="p-konto" role="tabpanel" aria-labelledby="t-konto" hidden>
+    <div class="card">
+      <h2>Was hast du wirklich ausgegeben?</h2>
+      <div class="drop" id="drop">
+        <label for="fileIn"><strong>Kontoauszug hochladen</strong></label>
+        <span class="hint">ZKB-Kontoauszug als PDF (im eBanking oder in der ZKB-App unter Dokumente) oder ein CSV-Export deiner Bank. Du kannst mehrere Monate hochladen. Die Datei wird nur in deinem Browser gelesen und nirgends hochgeladen.</span>
+        <input type="file" id="fileIn" accept=".pdf,.csv,application/pdf,text/csv" multiple>
+        <p class="status" id="impStatus" role="status"></p>
+      </div>
+      <div class="toolbar" id="txTools" hidden>
+        <div class="field"><label for="monthSel">Monat</label><select id="monthSel"></select></div>
+        <div class="field"><label for="catFilter">Kategorie</label><select id="catFilter"></select></div>
+      </div>
+      <div class="txlist" id="txList"></div>
+      <div class="actions" id="txActions" hidden><span class="spacer"></span><button class="btn danger" id="clearTx">Alle Buchungen löschen</button></div>
+    </div>
+    <div class="card">
+      <h2 id="cmpTitle">Budget gegen Wirklichkeit</h2>
+      <div class="sums" id="txSums"></div>
+      <div class="legend"><span style="--c:var(--s1)"><i></i>Ausgegeben</span><span style="--c:var(--ink)"><i style="width:2px;height:12px"></i>Budget pro Monat</span></div>
+      <div class="bars" id="cmpBars"></div>
+      <div class="verdict" id="cmpVerdict"></div>
+      <div><h3>Wiederkehrende Zahlungen</h3></div>
+      <ul class="recur" id="recur"></ul>
+      <p class="hint">Stimmt eine Kategorie nicht, ändere sie direkt in der Liste. Die App merkt sich das für alle Buchungen beim gleichen Händler.</p>
+    </div>
+  </section>
+
   <p class="foot">Krankenkasse: Jahreskosten = 12 × Monatsprämie + Franchise + 10 % Selbstbehalt auf die Kosten über der Franchise (höchstens CHF 700 pro Jahr). Spitalbeitrag, Unfalldeckung und Zusatzversicherungen sind nicht berücksichtigt. Die Prämien in den Beispielen sind ungefähre Werte und keine echte Offerte.</p>
 </div>
 
@@ -287,7 +343,7 @@ dialog h3 { margin: 0; font-family: var(--font-display); font-stretch: 112%; fon
   const KEY = 'haushaltsbuch.v1';
   const FRANCHISES = [300, 500, 1000, 1500, 2000, 2500];
   const SB_MAX = 700;
-  const EXP_CATS = ['Wohnen', 'Krankenkasse', 'Versicherungen', 'Steuern', 'Lebensmittel', 'Mobilität', 'Freizeit', 'Sparen', 'Diverses'];
+  const EXP_CATS = ['Wohnen', 'Krankenkasse', 'Versicherungen', 'Steuern', 'Lebensmittel', 'Auswärts essen', 'Mobilität', 'Rechnungen', 'Freizeit', 'Sparen', 'Diverses'];
   const ABO_CATS = ['Streaming', 'Telefon & Internet', 'Fitness', 'Zeitung & Medien', 'Software', 'Mobilität', 'Diverses'];
   const PERIODS = { m: { name: 'monatlich', months: 1 }, q: { name: 'vierteljährlich', months: 3 }, y: { name: 'jährlich', months: 12 } };
 
@@ -529,11 +585,306 @@ dialog h3 { margin: 0; font-family: var(--font-display); font-stretch: 112%; fon
     $('kkCosts').value = S.kk.costs;
   }
 
-  function renderAll() { renderStats(); renderBudget(); renderAbos(); renderKK(); }
+  function renderAll() { renderStats(); renderBudget(); renderAbos(); renderKK(); renderTx(); }
+
+  // ---- Kontoauszug-Import ----
+  const RULES = [
+    ['Krankenkasse', ['css versicherung', 'helsana', 'swica', 'sanitas', 'visana', 'assura', 'concordia', 'kpt', 'groupe mutuel', 'atupri', 'sympany', 'egk']],
+    ['Lebensmittel', ['migros', 'coop', 'denner', 'lidl', 'aldi', 'volg', 'spar ', 'landi', 'bäckerei', 'backerei', 'conditorei', 'confiserie', 'metzgerei', 'manor food', 'globus delica']],
+    ['Auswärts essen', ['gelateria', 'gastro', 'tacos', 'restaurant', 'café', 'cafe ', 'sv (schweiz)', 'mensa', 'mcdonald', 'burger', 'pizza', 'sushi', 'starbucks', 'kebab', 'döner', 'doner', 'suan long', 'tibits', 'hiltl', 'bar ', 'imbiss', 'take away']],
+    ['Mobilität', ['sbb', 'zvv', 'vbz', 'postauto', 'uber', 'mobility', 'publibike', 'bls', 'sob ', 'tankstelle', 'avia', 'migrol', 'parking', 'parkhaus']],
+    ['Abos', ['netflix', 'spotify', 'apple.com', 'itunes', 'disney', 'youtube', 'google', 'swisscom', 'sunrise', 'salt mobile', 'wingo', 'yallo', 'm-budget mobile', 'microsoft', 'adobe', 'chatgpt', 'openai', 'anthropic']],
+    ['Rechnungen', ['intrum', 'ebill', 'rechnung', 'serafe', 'billag', 'ewz', 'ekz', 'steueramt', 'stadt zürich', 'gemeinde']],
+    ['Freizeit', ['kino', 'pathe', 'kitag', 'ticketcorner', 'eventfrog', 'decathlon', 'ochsner', 'orell', 'thalia', 'ex libris', 'galaxus', 'digitec', 'zalando', 'h&m', 'zara']],
+  ];
+  const ACT_CATS = ['Lebensmittel', 'Auswärts essen', 'Mobilität', 'Abos', 'Rechnungen', 'Krankenkasse', 'Wohnen', 'Versicherungen', 'Steuern', 'Freizeit', 'Sparen', 'Überweisungen', 'Diverses'];
+  const IN_CATS = ['Einnahmen', 'Übertrag eigenes Konto'];
+
+  const num = s => Number(String(s).replace(/['’\s]/g, '').replace(/,(\d{2})$/, '.$1').replace(/,/g, ''));
+  function toIso(s) {
+    let m = s.match(/^(\d{1,2})\.(\d{1,2})\.(\d{2}|\d{4})$/);
+    if (m) return `${m[3].length === 2 ? '20' + m[3] : m[3]}-${pad(+m[2])}-${pad(+m[1])}`;
+    m = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (m) return `${m[1]}-${m[2]}-${m[3]}`;
+    return null;
+  }
+  const sameName = (a, b) => {
+    if (!a || !b) return false;
+    const w = s => s.toLowerCase().split(/\s+/).filter(Boolean);
+    const A = w(a), B = new Set(w(b));
+    return A.length > 1 && A.every(x => B.has(x));
+  };
+
+  function merchantOf(text, detail) {
+    let m;
+    if ((m = text.match(/Card(?: Nr\.)? [x*]+ ?\d+ (.+)$/i))) {
+      return m[1].replace(/\s+\d{4}\s+[A-Za-zÄÖÜäöü .-]+$/, '').replace(/^[A-Z]{2,4}\*/, '').trim();
+    }
+    if ((m = text.match(/TWINT:\s*(.*)$/i))) {
+      return m[1].replace(/,?\s*Auftrags-Nr\..*$/i, '').replace(/\+?\d[\d ]{8,}/g, '').replace(/^[,\s]+|[,\s]+$/g, '') || 'TWINT';
+    }
+    if (/Mobile Banking|E-Banking|Dauerauftrag|Zahlung/i.test(text)) return detail ? detail.slice(0, 40) : 'Zahlung (Mobile Banking)';
+    if (/^Gutschrift/i.test(text)) return detail ? detail.replace(/\s+\S*\d.*$/, '').slice(0, 40) : 'Gutschrift';
+    return text.replace(/,?\s*Auftrags-Nr\..*$/i, '').slice(0, 50);
+  }
+  const keyOf = merchant => merchant.toLowerCase().replace(/[^a-zäöüéèà&\s]/g, ' ').split(/\s+/).filter(Boolean).slice(0, 2).join(' ');
+
+  function guessCat(tx, owner) {
+    if (tx.dir === 'in') return sameName(owner, tx.detail) ? 'Übertrag eigenes Konto' : 'Einnahmen';
+    const learned = S.rules && S.rules[keyOf(tx.merchant)];
+    if (learned) return learned;
+    const hay = ' ' + (tx.merchant + ' ' + tx.text).toLowerCase() + ' ';
+    for (const [cat, words] of RULES) if (words.some(w => hay.includes(w))) return cat;
+    if (/TWINT|Mobile Banking|E-Banking|Dauerauftrag/i.test(tx.text)) return 'Überweisungen';
+    return 'Diverses';
+  }
+
+  // Zeilen aus einem PDF (pdf.js Textinhalte) nach y-Position zusammensetzen
+  function linesFromItems(items) {
+    const rows = [];
+    for (const it of items) {
+      if (!it.str || !it.str.trim()) continue;
+      const x = it.transform[4], y = it.transform[5];
+      let r = rows.find(r => Math.abs(r.y - y) < 2.5);
+      if (!r) rows.push(r = { y, parts: [] });
+      r.parts.push({ x, s: it.str });
+    }
+    rows.sort((a, b) => b.y - a.y);
+    return rows.map(r => r.parts.sort((a, b) => a.x - b.x).map(p => p.s).join(' ').replace(/\s+/g, ' ').trim());
+  }
+
+  // ZKB-Kontoauszug (und ähnlich aufgebaute Auszüge): Datum, Text, Betrag, Valuta, Saldo
+  function parseStatementLines(lines) {
+    const owner = (lines.find(l => /^Lautend auf /.test(l)) || '').replace(/^Lautend auf /, '').trim();
+    const TX = /^(\d{2}\.\d{2}\.\d{2,4}) (.+?) (-?\d[\d']*\.\d{2}) (\d{2}\.\d{2}\.\d{2,4}) (-?\d[\d']*\.\d{2})$/;
+    const OPEN = /Saldovortrag.*?(-?\d[\d']*\.\d{2})$/;
+    const JUNK = /^(Konto-Nr|IBAN|Produkt|Rubrik|Lautend auf|Zürich,|Datum Geschäftsvorgang|Additionen|Schlusssaldo|Auszug|Seite|\d{20,}|[A-P]{30,}|.*Versand \d)/;
+    const out = [];
+    let saldo = null, last = null;
+    for (const l of lines) {
+      let m;
+      if (/^\d{2}\.\d{2}\.\d{2,4} Saldovortrag/.test(l) && (m = l.match(OPEN))) { saldo = num(m[1]); last = null; continue; }
+      if ((m = l.match(TX))) {
+        const amount = Math.abs(num(m[3])), bal = num(m[5]);
+        let dir;
+        if (saldo !== null) dir = bal < saldo - 0.001 ? 'out' : 'in';
+        else dir = /^Gutschrift|Eingang|Lohn/i.test(m[2]) ? 'in' : 'out';
+        saldo = bal;
+        last = { date: toIso(m[1]), text: m[2].trim(), amount, dir, balance: bal, detail: '' };
+        out.push(last);
+        continue;
+      }
+      if (last && !last.detail && !JUNK.test(l) && !/^\d{2}\.\d{2}\.\d{2}/.test(l)) last.detail = l;
+      else last = JUNK.test(l) ? last : null;
+    }
+    return { owner, txs: out };
+  }
+
+  // CSV-Export: Spalten werden anhand der Kopfzeile erkannt
+  function parseCsv(text) {
+    const lines = text.replace(/^﻿/, '').split(/\r?\n/).filter(l => l.trim());
+    const delim = (lines[0].match(/;/g) || []).length >= (lines[0].match(/,/g) || []).length ? ';' : ',';
+    const split = l => { const r = []; let cur = '', q = false; for (const ch of l) { if (ch === '"') q = !q; else if (ch === delim && !q) { r.push(cur); cur = ''; } else cur += ch; } r.push(cur); return r.map(s => s.trim()); };
+    let h = -1, cols;
+    for (let i = 0; i < Math.min(lines.length, 30); i++) {
+      const c = split(lines[i]).map(s => s.toLowerCase());
+      if (c.some(s => /datum|date/.test(s)) && c.some(s => /betrag|amount|belastung|gutschrift|debit|credit/.test(s))) { h = i; cols = c; break; }
+    }
+    if (h < 0) throw new Error('In der CSV-Datei wurde keine Kopfzeile mit Datum und Betrag gefunden.');
+    const find = re => cols.findIndex(s => re.test(s));
+    const cDate = find(/^(buchungsdatum|datum|date|abschlussdatum)/), cText = find(/buchungstext|beschreibung|text|description|details|avisierung|empfänger|zahlungszweck/);
+    const cDeb = find(/belastung|lastschrift|debit|soll/), cCred = find(/gutschrift|credit|haben/), cAmt = find(/^(betrag|amount)/);
+    const txs = [];
+    for (const l of lines.slice(h + 1)) {
+      const c = split(l);
+      const date = toIso(c[cDate] || '');
+      if (!date) continue;
+      let amount, dir;
+      if (cDeb >= 0 && c[cDeb]) { amount = Math.abs(num(c[cDeb])); dir = 'out'; }
+      else if (cCred >= 0 && c[cCred]) { amount = Math.abs(num(c[cCred])); dir = 'in'; }
+      else if (cAmt >= 0 && c[cAmt]) { const v = num(c[cAmt]); amount = Math.abs(v); dir = v < 0 ? 'out' : 'in'; }
+      if (!(amount > 0)) continue;
+      txs.push({ date, text: c[cText] || '', amount, dir, balance: null, detail: '' });
+    }
+    return { owner: '', txs };
+  }
+
+  const PDFJS = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/';
+  let pdfReady = null;
+  function loadScript(src) {
+    return new Promise((res, rej) => { const s = document.createElement('script'); s.src = src; s.onload = res; s.onerror = () => rej(new Error('Das PDF-Modul konnte nicht geladen werden. Prüfe deine Internetverbindung.')); document.head.appendChild(s); });
+  }
+  function loadPdfJs() {
+    if (!pdfReady) pdfReady = loadScript(PDFJS + 'pdf.min.js').then(() => loadScript(PDFJS + 'pdf.worker.min.js')).then(() => {
+      window.pdfjsLib.GlobalWorkerOptions.workerSrc = PDFJS + 'pdf.worker.min.js';
+      return window.pdfjsLib;
+    });
+    return pdfReady;
+  }
+  async function readPdf(file) {
+    const lib = await loadPdfJs();
+    const doc = await lib.getDocument({ data: new Uint8Array(await file.arrayBuffer()) }).promise;
+    let lines = [];
+    for (let p = 1; p <= doc.numPages; p++) {
+      const tc = await (await doc.getPage(p)).getTextContent();
+      lines = lines.concat(linesFromItems(tc.items));
+    }
+    return parseStatementLines(lines);
+  }
+
+  async function importFiles(files) {
+    const st = $('impStatus');
+    st.className = 'status'; st.textContent = 'Lese Datei …';
+    let added = 0, dup = 0, found = 0;
+    const seen = new Set(S.tx.map(t => t.id));
+    try {
+      for (const f of files) {
+        const isPdf = /\.pdf$/i.test(f.name) || f.type === 'application/pdf';
+        const res = isPdf ? await readPdf(f) : parseCsv(await f.text());
+        found += res.txs.length;
+        res.txs.forEach((t, i) => {
+          const id = [t.date, t.dir, t.amount.toFixed(2), t.balance ?? i, t.text].join('|');
+          if (seen.has(id)) { dup++; return; }
+          seen.add(id);
+          t.id = id;
+          t.merchant = merchantOf(t.text, t.detail);
+          t.cat = guessCat(t, res.owner);
+          delete t.detail; delete t.balance;
+          S.tx.push(t); added++;
+        });
+      }
+      if (!found) throw new Error('In der Datei wurden keine Buchungen gefunden. Lade einen Kontoauszug als PDF oder einen CSV-Export hoch.');
+      S.tx.sort((a, b) => a.date.localeCompare(b.date));
+      if (added) txMonth = S.tx[S.tx.length - 1].date.slice(0, 7);
+      save(); renderTx(); renderStats();
+      st.className = 'status ok';
+      st.textContent = `${added} Buchung${added === 1 ? '' : 'en'} importiert` + (dup ? `, ${dup} waren schon vorhanden.` : '.');
+    } catch (e) {
+      st.className = 'status bad';
+      st.textContent = e.message || 'Die Datei konnte nicht gelesen werden.';
+    }
+    $('fileIn').value = '';
+  }
+
+  const MONTHS = ['Januar', 'Februar', 'März', 'April', 'Mai', 'Juni', 'Juli', 'August', 'September', 'Oktober', 'November', 'Dezember'];
+  const monthName = ym => `${MONTHS[+ym.slice(5, 7) - 1]} ${ym.slice(0, 4)}`;
+  let txMonth = null, txCat = '';
+
+  function budgetByCat() {
+    const b = {};
+    S.expenses.forEach(e => { b[e.cat] = (b[e.cat] || 0) + monthly(e.amount, e.period); });
+    const ab = aboTotalM(); if (ab) b['Abos'] = (b['Abos'] || 0) + ab;
+    return b;
+  }
+
+  function renderTx() {
+    const has = S.tx.length > 0;
+    $('txCnt').textContent = has ? S.tx.length : '';
+    $('txTools').hidden = !has; $('txActions').hidden = !has;
+    if (!has) {
+      $('txList').innerHTML = '<p class="empty">Noch keine Buchungen. Lade oben deinen Kontoauszug hoch. Danach siehst du hier jede Buchung mit Kategorie und rechts den Vergleich mit deinem Budget.</p>';
+      $('txSums').innerHTML = ''; $('cmpBars').innerHTML = ''; $('recur').innerHTML = '<li class="hint">Erscheint, sobald Buchungen aus mindestens zwei Monaten importiert sind.</li>';
+      $('cmpVerdict').innerHTML = 'Lade einen Kontoauszug hoch, um deine echten Ausgaben mit dem Budget zu vergleichen.';
+      $('cmpVerdict').style.borderLeftColor = 'var(--muted)';
+      $('cmpTitle').textContent = 'Budget gegen Wirklichkeit';
+      return;
+    }
+    const months = [...new Set(S.tx.map(t => t.date.slice(0, 7)))].sort().reverse();
+    if (!months.includes(txMonth)) txMonth = months[0];
+    $('monthSel').innerHTML = months.map(m => `<option value="${m}"${m === txMonth ? ' selected' : ''}>${monthName(m)}</option>`).join('');
+    const inMonth = S.tx.filter(t => t.date.startsWith(txMonth));
+    const usedCats = [...new Set(inMonth.map(t => t.cat))];
+    if (txCat && !usedCats.includes(txCat)) txCat = '';
+    $('catFilter').innerHTML = '<option value="">Alle</option>' + usedCats.sort().map(c => `<option${c === txCat ? ' selected' : ''}>${esc(c)}</option>`).join('');
+
+    const shown = inMonth.filter(t => !txCat || t.cat === txCat).slice().reverse();
+    $('txList').innerHTML = shown.map(t => {
+      const cats = t.dir === 'in' ? IN_CATS : ACT_CATS;
+      const d = t.date.slice(8, 10) + '.' + t.date.slice(5, 7) + '.';
+      return `<div class="tx"><span class="d">${d}</span><span class="m">${esc(t.merchant)}</span>
+        <span class="a${t.dir === 'in' ? ' in' : ''}">${t.dir === 'in' ? '+' : '−'}${money(t.amount)}</span>
+        <select data-tx="${esc(t.id)}" aria-label="Kategorie für ${esc(t.merchant)}">${cats.map(c => `<option${c === t.cat ? ' selected' : ''}>${c}</option>`).join('')}</select></div>`;
+    }).join('') || '<p class="empty">Keine Buchungen in dieser Auswahl.</p>';
+
+    // Summen
+    const out = inMonth.filter(t => t.dir === 'out');
+    const spent = out.reduce((s, t) => s + t.amount, 0);
+    const inc = inMonth.filter(t => t.dir === 'in' && t.cat === 'Einnahmen').reduce((s, t) => s + t.amount, 0);
+    const own = inMonth.filter(t => t.dir === 'in' && t.cat !== 'Einnahmen').reduce((s, t) => s + t.amount, 0);
+    $('cmpTitle').textContent = `${monthName(txMonth)}: Budget gegen Wirklichkeit`;
+    $('txSums').innerHTML = `<div><span class="k">Ausgegeben</span><span class="v">${money(spent)}</span></div>
+      <div><span class="k">Einnahmen</span><span class="v">${money(inc)}</span></div>
+      <div><span class="k">Von eigenem Konto</span><span class="v">${money(own)}</span></div>`;
+
+    // Kategorien: Ist gegen Budget
+    const act = {};
+    out.forEach(t => { act[t.cat] = (act[t.cat] || 0) + t.amount; });
+    const bud = budgetByCat();
+    const cats = Object.keys(act).sort((a, b) => act[b] - act[a]);
+    const max = Math.max(1, ...cats.map(c => Math.max(act[c], bud[c] || 0)));
+    $('cmpBars').innerHTML = cats.map(c => {
+      const a = act[c], b = bud[c] || 0, over = b > 0 && a > b;
+      const n = out.filter(t => t.cat === c).length;
+      return `<div class="bar${over ? ' over' : ''}"><span class="lbl">${esc(c)}</span>
+        <span class="track cmp"><span class="seg" style="--c:var(--s1);width:${a / max * 100}%" data-tip="${esc(c)}: <span class='num'>${money(a)}</span> in ${n} Buchung${n === 1 ? '' : 'en'}<br>${b ? `Budget: <span class='num'>${money(b)}</span>` : 'kein Budget erfasst'}"></span>${b ? `<span class="mark" style="left:calc(${b / max * 100}% - 1px)"></span>` : ''}</span>
+        <span class="val">${money0(a)}${b ? ` / ${money0(b)}` : ''}</span></div>`;
+    }).join('');
+    bindTips($('cmpBars'));
+
+    const overs = cats.filter(c => bud[c] > 0 && act[c] > bud[c]);
+    const top = cats[0];
+    const v = $('cmpVerdict');
+    v.style.borderLeftColor = overs.length ? 'var(--bad)' : 'var(--good)';
+    v.innerHTML = overs.length
+      ? `<strong>Über dem Budget: ${overs.map(esc).join(', ')}</strong><br><span class="hint">${overs.map(c => `${esc(c)} ${money0(act[c] - bud[c])} zu viel`).join(' · ')}. Am meisten ging für ${esc(top)} weg (${money0(act[top])}).</span>`
+      : `<strong>Alles im Budget.</strong><br><span class="hint">Am meisten ging für ${esc(top)} weg (${money0(act[top])}). Kategorien ohne schwarzen Strich haben noch kein Budget. Du kannst eines im Register Budget erfassen.</span>`;
+
+    // Wiederkehrende Zahlungen über mehrere Monate
+    const byKey = {};
+    S.tx.filter(t => t.dir === 'out').forEach(t => { const k = keyOf(t.merchant); (byKey[k] ||= []).push(t); });
+    const known = S.abos.map(a => a.name.toLowerCase());
+    const rec = Object.values(byKey).map(list => {
+      const ms = new Set(list.map(t => t.date.slice(0, 7)));
+      const avg = list.reduce((s, t) => s + t.amount, 0) / list.length;
+      const steady = list.every(t => Math.abs(t.amount - avg) <= Math.max(1, avg * 0.1));
+      return { t: list[list.length - 1], months: ms.size, avg, steady };
+    }).filter(r => r.months >= 2 && r.steady && r.t.cat !== 'Lebensmittel' && !known.some(k => r.t.merchant.toLowerCase().includes(k)));
+    $('recur').innerHTML = rec.length
+      ? rec.map(r => `<li><span>${esc(r.t.merchant)} · ca. ${money(r.avg)} in ${r.months} Monaten</span><button class="link" data-recur="${esc(r.t.id)}">Als Abo erfassen</button></li>`).join('')
+      : `<li class="hint">${months.length < 2 ? 'Lade Auszüge aus mindestens zwei Monaten hoch, dann findet die App Zahlungen, die jeden Monat wiederkommen.' : 'Keine wiederkehrenden Zahlungen gefunden, die nicht schon als Abo erfasst sind.'}</li>`;
+  }
+
+  $('fileIn').addEventListener('change', e => { if (e.target.files.length) importFiles([...e.target.files]); });
+  const drop = $('drop');
+  ['dragenter', 'dragover'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('over'); }));
+  ['dragleave', 'drop'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove('over'); }));
+  drop.addEventListener('drop', e => { if (e.dataTransfer.files.length) importFiles([...e.dataTransfer.files]); });
+  $('monthSel').addEventListener('change', e => { txMonth = e.target.value; renderTx(); });
+  $('catFilter').addEventListener('change', e => { txCat = e.target.value; renderTx(); });
+  $('txList').addEventListener('change', e => {
+    const sel = e.target.closest('select[data-tx]'); if (!sel) return;
+    const t = S.tx.find(x => x.id === sel.dataset.tx); if (!t) return;
+    const k = keyOf(t.merchant);
+    if (t.dir === 'out') { S.rules[k] = sel.value; S.tx.forEach(x => { if (x.dir === 'out' && keyOf(x.merchant) === k) x.cat = sel.value; }); }
+    else t.cat = sel.value;
+    save(); renderTx();
+  });
+  $('recur').addEventListener('click', e => {
+    const b = e.target.closest('[data-recur]'); if (!b) return;
+    const t = S.tx.find(x => x.id === b.dataset.recur); if (!t) return;
+    S.abos.push({ id: uid(), name: t.merchant, cat: 'Diverses', price: t.amount, period: 'm', renew: iso(addMonths(parse(t.date), 1)), notice: 0, active: true });
+    save(); renderAll(); showTab('abos');
+  });
+  $('clearTx').addEventListener('click', () => {
+    const b = $('clearTx');
+    if (!b.classList.contains('armed')) { b.classList.add('armed'); b.textContent = 'Wirklich alle löschen?'; return; }
+    b.classList.remove('armed'); b.textContent = 'Alle Buchungen löschen';
+    S.tx = []; S.rules = {}; save(); renderTx(); $('impStatus').textContent = '';
+  });
 
   // Register
   function showTab(name) {
-    if (!['budget', 'abos', 'krankenkasse'].includes(name)) name = 'budget';
+    if (!['budget', 'abos', 'krankenkasse', 'konto'].includes(name)) name = 'budget';
     document.querySelectorAll('.tab').forEach(t => t.setAttribute('aria-selected', String(t.dataset.tab === name)));
     document.querySelectorAll('[role=tabpanel]').forEach(p => { p.hidden = p.id !== 'p-' + name; });
     try { history.replaceState(null, '', '#' + name); } catch (_) {}
@@ -661,6 +1012,7 @@ dialog h3 { margin: 0; font-family: var(--font-display); font-stretch: 112%; fon
   // Start
   const stored = load();
   S = stored || examples();
+  S.tx ||= []; S.rules ||= {};
   if (!stored) save();
   renderKKInputs();
   renderAll();
