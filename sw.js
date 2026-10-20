@@ -1,6 +1,6 @@
 // Offline-Cache: Die Seite selbst kommt immer frisch aus dem Netz (damit Updates sofort sichtbar sind),
 // der Cache springt nur ein, wenn kein Internet da ist. Bilder und Skripte kommen zuerst aus dem Cache.
-const CACHE = 'haushaltsbuch-v2';
+const CACHE = 'haushaltsbuch-v3';
 const CORE = ['./haushaltsbuch.html', './manifest.webmanifest', './app-icons/icon-180.png', './app-icons/icon-192.png'];
 
 self.addEventListener('install', e => {
