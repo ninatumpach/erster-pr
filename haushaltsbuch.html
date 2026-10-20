@@ -395,7 +395,16 @@ dialog h3 { margin: 0; font-family: var(--font-display); font-stretch: 112%; fon
   const groupOf = e => e.group || CAT_GROUP[e.cat] || 'var';
   const gById = id => GROUPS.find(g => g.id === id);
   const ABO_CATS = ['Streaming', 'Telefon & Internet', 'Fitness', 'Zeitung & Medien', 'Software', 'Mobilität', 'Diverses'];
-  const PERIODS = { m: { name: 'monatlich', months: 1 }, q: { name: 'vierteljährlich', months: 3 }, y: { name: 'jährlich', months: 12 } };
+  // perMonth: wie oft der Betrag pro Monat anfällt (365 Tage, 52 Wochen, 5 Arbeitstage pro Woche)
+  const PERIODS = {
+    d: { name: 'täglich', unit: 'pro Tag', perMonth: 365 / 12 },
+    wd: { name: 'an Arbeitstagen', unit: 'pro Arbeitstag', perMonth: 5 * 52 / 12 },
+    w: { name: 'wöchentlich', unit: 'pro Woche', perMonth: 52 / 12 },
+    m: { name: 'monatlich', unit: 'pro Monat', perMonth: 1, months: 1 },
+    q: { name: 'vierteljährlich', unit: 'pro Quartal', perMonth: 1 / 3, months: 3 },
+    y: { name: 'jährlich', unit: 'pro Jahr', perMonth: 1 / 12, months: 12 },
+  };
+  const ABO_PERIODS = ['m', 'q', 'y'];
 
   const $ = id => document.getElementById(id);
   const chf = new Intl.NumberFormat('de-CH', { style: 'currency', currency: 'CHF', minimumFractionDigits: 2, maximumFractionDigits: 2 });
@@ -415,7 +424,7 @@ dialog h3 { margin: 0; font-family: var(--font-display); font-stretch: 112%; fon
   };
   const today = () => { const n = new Date(); return new Date(n.getFullYear(), n.getMonth(), n.getDate()); };
   const daysBetween = (a, b) => Math.round((b - a) / 86400000);
-  const monthly = (amount, period) => amount / PERIODS[period].months;
+  const monthly = (amount, period) => amount * (PERIODS[period] || PERIODS.m).perMonth;
 
   // Beispieldaten
   function examples() {
@@ -434,6 +443,7 @@ dialog h3 { margin: 0; font-family: var(--font-display); font-stretch: 112%; fon
         { id: uid(), name: 'Lebensmittel', cat: 'Lebensmittel', amount: 650, period: 'm', example: true },
         { id: uid(), name: 'GA / Halbtax und Billette', cat: 'Mobilität', amount: 120, period: 'm', example: true },
         { id: uid(), name: 'Ausgang und Hobbys', cat: 'Freizeit', amount: 300, period: 'm', example: true },
+        { id: uid(), name: 'Kaffee unterwegs', cat: 'Auswärts essen', amount: 4.5, period: 'wd', example: true },
         { id: uid(), name: 'Kleider und Schuhe', cat: 'Kleider', amount: 80, period: 'm', example: true },
         { id: uid(), name: 'Ferien', cat: 'Ferien', amount: 2400, period: 'y', example: true },
         { id: uid(), name: 'Säule 3a', cat: 'Sparen', amount: 7258, period: 'y', example: true },
@@ -522,7 +532,7 @@ dialog h3 { margin: 0; font-family: var(--font-display); font-stretch: 112%; fon
   const exTag = x => (x.example ? '<span class="tag">Beispiel</span>' : '');
   const periodAmt = (amount, period) => period === 'm'
     ? money(amount)
-    : `${money(monthly(amount, period))}<small>${money(amount)} ${PERIODS[period].name}</small>`;
+    : `${money(monthly(amount, period))}<small>${money(amount)} ${PERIODS[period].unit}</small>`;
 
   function renderBudget() {
     $('incList').innerHTML = S.income.length ? S.income.map(i => `<li><button class="row" data-edit="income" data-id="${i.id}">
@@ -1009,7 +1019,10 @@ dialog h3 { margin: 0; font-family: var(--font-display); font-stretch: 112%; fon
       case 'money': return `<div class="field"><label for="${id}">${f.label}</label><input id="${id}" class="num" type="number" inputmode="decimal" min="0" step="0.05" value="${v ?? ''}"></div>`;
       case 'date': return `<div class="field"><label for="${id}">${f.label}</label><input id="${id}" type="date" value="${v ?? ''}"></div>`;
       case 'select': return `<div class="field"><label for="${id}">${f.label}</label><select id="${id}">${f.options.map(o => `<option${o === v ? ' selected' : ''}>${o}</option>`).join('')}</select></div>`;
-      case 'period': return `<div class="field"><label for="${id}">${f.label}</label><select id="${id}">${Object.entries(PERIODS).map(([k, p]) => `<option value="${k}"${k === v ? ' selected' : ''}>${p.name}</option>`).join('')}</select></div>`;
+      case 'period': {
+        const keys = editing && editing.kind === 'abo' ? ABO_PERIODS : Object.keys(PERIODS);
+        return `<div class="field"><label for="${id}">${f.label}</label><select id="${id}">${keys.map(k => `<option value="${k}"${k === v ? ' selected' : ''}>${PERIODS[k].name}</option>`).join('')}</select><span class="hint" id="${id}-calc"></span></div>`;
+      }
       case 'notice': return `<div class="field"><label for="${id}">${f.label}</label><select id="${id}">${[0, 1, 2, 3, 6].map(n => `<option value="${n}"${n === Number(v) ? ' selected' : ''}>${n === 0 ? 'jederzeit bis zur Verlängerung' : `${n} Monat${n > 1 ? 'e' : ''} vorher`}</option>`).join('')}</select></div>`;
       case 'group': return `<div class="field"><label for="${id}">${f.label}</label><select id="${id}">${GROUPS.map(g => `<option value="${g.id}"${g.id === v ? ' selected' : ''}>${g.name}</option>`).join('')}</select></div>`;
       case 'check': return `<label class="check"><input id="${id}" type="checkbox"${v ? ' checked' : ''}> ${f.label}</label>`;
@@ -1020,10 +1033,17 @@ dialog h3 { margin: 0; font-family: var(--font-display); font-stretch: 112%; fon
     const spec = SPECS[kind];
     const item = id ? spec.list().find(x => x.id === id) : null;
     editing = { kind, id: item ? item.id : null };
-    const defaults = { period: 'm', cat: kind === 'abo' ? ABO_CATS[0] : EXP_CATS[EXP_CATS.length - 1], renew: iso(addMonths(today(), 1)), notice: 0, active: true };
+    const defaults = { period: 'm', cat: kind === 'abo' ? ABO_CATS[0] : 'Diverses', renew: iso(addMonths(today(), 1)), notice: 0, active: true };
     $('dlgTitle').textContent = item ? `${spec.title} bearbeiten` : { income: 'Neue Einnahme', expense: 'Neue Ausgabe', abo: 'Neues Abo' }[kind];
     if (kind === 'expense') defaults.group = CAT_GROUP[defaults.cat];
     $('dlgFields').innerHTML = spec.fields.map(f => fieldHtml(f, item ? (f.k === 'group' ? groupOf(item) : item[f.k]) : defaults[f.k])).join('');
+    const calc = () => {
+      const mk = spec.fields.find(f => f.type === 'money').k;
+      const amt = Number($('f-' + mk).value), per = $('f-period').value;
+      $('f-period-calc').textContent = amt > 0 && per !== 'm' ? `Das sind ${money(monthly(amt, per))} pro Monat und ${money0(monthly(amt, per) * 12)} pro Jahr.` : '';
+    };
+    $('dlgFields').oninput = calc; $('dlgFields').onchange = calc;
+    calc();
     if (kind === 'expense') $('f-cat').addEventListener('change', e => { $('f-group').value = CAT_GROUP[e.target.value] || 'var'; });
     $('err').textContent = '';
     const del = $('delBtn'); del.hidden = !item; del.classList.remove('armed'); del.textContent = 'Löschen';
