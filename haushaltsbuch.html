@@ -1145,7 +1145,16 @@ dialog h3 { margin: 0; font-family: var(--font-display); font-stretch: 112%; fon
     e.target.value = '';
   });
   if ('serviceWorker' in navigator && location.protocol === 'https:' && !framed) {
-    navigator.serviceWorker.register('sw.js').catch(() => {});
+    // Sobald eine neue Version des Offline-Speichers aktiv wird, einmal neu laden
+    const hadController = !!navigator.serviceWorker.controller;
+    let reloaded = false;
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (hadController && !reloaded) { reloaded = true; location.reload(); }
+    });
+    navigator.serviceWorker.register('sw.js', { updateViaCache: 'none' }).then(reg => {
+      reg.update().catch(() => {});
+      document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') reg.update().catch(() => {}); });
+    }).catch(() => {});
   }
 
   // Start
