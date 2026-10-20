@@ -1,0 +1,673 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Haushaltsbuch</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..800&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+/* Layout: Kennzahlen-Leiste oben, darunter drei Register (Budget, Abos, Krankenkasse) mit Liste links und Auswertung rechts. */
+:root {
+  --bg: #f3f5f4;
+  --surface: #ffffff;
+  --ink: #14201c;
+  --muted: #5d6b67;
+  --line: #d8dfdc;
+  --soft: #e8edeb;
+  --good: #1d7a4a;
+  --warn: #a86400;
+  --bad: #c0281c;
+  --s1: #2a78d6;
+  --s2: #eb6834;
+  --s3: #1baf7a;
+  --font-display: "Archivo", "Helvetica Neue", Arial, sans-serif;
+  --font-body: "Archivo", "Helvetica Neue", Arial, sans-serif;
+  --font-mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+  --radius: 6px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0f1513; --surface: #161e1b; --ink: #e6ecea; --muted: #93a29d; --line: #2a3531; --soft: #1e2824;
+    --good: #5cc796; --warn: #f0b542; --bad: #ff7a6e; --s1: #3987e5; --s2: #d95926; --s3: #199e70;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0f1513; --surface: #161e1b; --ink: #e6ecea; --muted: #93a29d; --line: #2a3531; --soft: #1e2824;
+  --good: #5cc796; --warn: #f0b542; --bad: #ff7a6e; --s1: #3987e5; --s2: #d95926; --s3: #199e70;
+  color-scheme: dark;
+}
+[hidden] { display: none !important; }
+body { background: var(--bg); color: var(--ink); font-family: var(--font-body); font-size: 15px; line-height: 1.45; }
+.app {
+  max-width: 1180px; margin: 0 auto; display: grid; gap: 20px;
+  padding-block: 24px 48px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+}
+button, input, select, textarea { font: inherit; color: inherit; }
+button { cursor: pointer; }
+:focus-visible { outline: 2px solid var(--s1); outline-offset: 2px; }
+.num { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+
+/* Kopf */
+.top { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: flex-end; gap: 12px; border-bottom: 2px solid var(--ink); padding-bottom: 14px; }
+.eyebrow { font-size: 12px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+h1 { margin: 4px 0 0; font-family: var(--font-display); font-stretch: 125%; font-weight: 800; font-size: clamp(32px, 5.5vw, 56px); line-height: .95; letter-spacing: -.02em; }
+.privacy { font-size: 12.5px; color: var(--muted); max-width: 36ch; }
+
+/* Kennzahlen */
+.stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 1px; background: var(--line); border: 1px solid var(--line); border-radius: var(--radius); overflow: hidden; }
+@media (max-width: 760px) { .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.stat { background: var(--surface); padding: 14px 16px; display: grid; gap: 4px; min-width: 0; }
+.stat .k { font-size: 11.5px; font-weight: 600; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+.stat .v { font-family: var(--font-mono); font-variant-numeric: tabular-nums; font-size: clamp(18px, 2.4vw, 24px); font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.stat .s { font-size: 12.5px; color: var(--muted); }
+.v.good { color: var(--good); } .v.bad { color: var(--bad); }
+
+.notice { display: flex; flex-wrap: wrap; gap: 6px 14px; align-items: center; font-size: 13px; color: var(--muted); border: 1px dashed var(--line); border-radius: var(--radius); padding: 8px 12px; background: var(--surface); }
+.link { border: 0; background: none; padding: 0; text-decoration: underline; color: var(--ink); font-weight: 600; }
+
+/* Register */
+.tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--line); overflow-x: auto; }
+.tab { border: 0; background: none; padding: 10px 14px 9px; font-weight: 650; color: var(--muted); border-bottom: 3px solid transparent; white-space: nowrap; }
+.tab[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--ink); }
+.tab .cnt { font-family: var(--font-mono); font-size: 12px; font-weight: 500; margin-left: 4px; }
+
+.panel { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 20px; align-items: start; }
+@media (max-width: 900px) { .panel { grid-template-columns: minmax(0, 1fr); } }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 18px; display: grid; gap: 14px; min-width: 0; }
+.card h2 { margin: 0; font-family: var(--font-display); font-stretch: 112%; font-weight: 750; font-size: 20px; line-height: 1.15; text-wrap: balance; }
+.card h3 { margin: 0; font-size: 12px; font-weight: 650; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+.card-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; }
+.hint { font-size: 13px; color: var(--muted); margin: 0; }
+.hint a { color: var(--ink); }
+
+.btn { border: 1.5px solid var(--ink); background: transparent; border-radius: var(--radius); padding: 7px 13px; font-weight: 600; min-height: 38px; }
+.btn:hover { background: var(--soft); }
+.btn.primary { background: var(--ink); color: var(--bg); }
+.btn.primary:hover { background: var(--ink); opacity: .88; }
+.btn.danger { border-color: var(--bad); color: var(--bad); }
+.btn.danger.armed { background: var(--bad); color: var(--surface); }
+
+/* Listen */
+.rows { list-style: none; margin: 0; padding: 0; display: grid; }
+.rows li + li { border-top: 1px solid var(--line); }
+.row { width: 100%; border: 0; background: none; text-align: left; padding: 10px 4px; display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 12px; align-items: baseline; }
+button.row:hover { background: var(--soft); }
+.row .name { font-weight: 600; overflow-wrap: anywhere; }
+.row .sub { font-size: 12.5px; color: var(--muted); grid-column: 1; }
+.row .amt { font-family: var(--font-mono); font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
+.row .amt small { display: block; font-size: 11.5px; color: var(--muted); }
+.row.auto { color: var(--muted); }
+.row.off .name, .row.off .amt { text-decoration: line-through; color: var(--muted); }
+.total { display: flex; justify-content: space-between; border-top: 2px solid var(--ink); padding: 10px 4px 0; font-weight: 700; }
+.total .num { font-weight: 600; }
+.tag { display: inline-block; font-size: 10px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; border: 1px solid var(--line); border-radius: 3px; padding: 0 4px; margin-left: 6px; color: var(--muted); vertical-align: 2px; }
+.empty { color: var(--muted); padding: 14px 4px; font-size: 14px; }
+
+.pill { display: inline-flex; align-items: center; gap: 5px; font-size: 11.5px; font-weight: 650; border-radius: 999px; padding: 1px 8px; border: 1px solid currentColor; white-space: nowrap; }
+.pill.warn { color: var(--warn); } .pill.ok { color: var(--good); } .pill.bad { color: var(--bad); } .pill.mute { color: var(--muted); }
+
+/* Balken */
+.bars { display: grid; gap: 10px; }
+.bar { display: grid; grid-template-columns: minmax(84px, 30%) minmax(0, 1fr) auto; gap: 10px; align-items: center; font-size: 13px; }
+.bar .lbl { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bar .track { display: flex; gap: 2px; height: 16px; align-items: stretch; }
+.bar .seg { height: 100%; min-width: 2px; background: var(--c); }
+.bar .seg:first-child { border-radius: 4px 0 0 4px; }
+.bar .seg:last-child { border-radius: 0 4px 4px 0; }
+.bar .seg:only-child { border-radius: 4px; }
+.bar .val { font-family: var(--font-mono); font-variant-numeric: tabular-nums; font-size: 12.5px; text-align: right; white-space: nowrap; }
+.bar.best .lbl, .bar.best .val { font-weight: 700; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 12.5px; color: var(--muted); }
+.legend span { display: inline-flex; gap: 6px; align-items: center; }
+.legend i { width: 10px; height: 10px; border-radius: 2px; background: var(--c); display: block; }
+.tip { position: fixed; z-index: 20; pointer-events: none; background: var(--ink); color: var(--bg); font-size: 12.5px; padding: 6px 9px; border-radius: 4px; max-width: 240px; }
+.tip .num { font-weight: 600; }
+
+/* Krankenkasse */
+.kk-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+@media (max-width: 520px) { .kk-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.field { display: grid; gap: 5px; min-width: 0; }
+.field label, .field legend { font-size: 12px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+.field input, .field select, .field textarea { width: 100%; box-sizing: border-box; border: 1.5px solid var(--line); border-radius: var(--radius); background: var(--bg); padding: 7px 10px; min-height: 38px; }
+.field input:focus, .field select:focus { border-color: var(--ink); outline: none; }
+.field input.num { text-align: right; }
+.slider { display: grid; gap: 6px; }
+.slider input[type=range] { width: 100%; accent-color: var(--s1); }
+.slider .readout { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.slider .readout .num { font-size: 22px; font-weight: 600; }
+.verdict { border-left: 4px solid var(--good); padding: 8px 12px; background: var(--soft); border-radius: 0 var(--radius) var(--radius) 0; }
+.verdict strong { font-family: var(--font-display); font-stretch: 112%; font-size: 18px; }
+.ranges { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; font-size: 13.5px; }
+.ranges li { display: flex; justify-content: space-between; gap: 10px; border-bottom: 1px dotted var(--line); padding-bottom: 4px; }
+.deadline { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+.deadline .big { font-family: var(--font-mono); font-size: 28px; font-weight: 600; line-height: 1; }
+.table-wrap { overflow-x: auto; }
+table { border-collapse: collapse; width: 100%; font-size: 13px; }
+th, td { padding: 6px 8px; text-align: right; border-bottom: 1px solid var(--line); white-space: nowrap; }
+th:first-child, td:first-child { text-align: left; }
+th { font-size: 11px; letter-spacing: .08em; text-transform: uppercase; color: var(--muted); font-weight: 650; }
+td { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+tr.best td { font-weight: 700; }
+details summary { cursor: pointer; font-size: 13px; color: var(--muted); }
+
+/* Dialog */
+dialog { border: 1px solid var(--line); border-radius: 10px; padding: 0; width: min(440px, calc(100vw - 32px)); background: var(--surface); color: var(--ink); }
+dialog::backdrop { background: color-mix(in srgb, var(--ink) 40%, transparent); }
+dialog form { padding: 20px; display: grid; gap: 12px; }
+dialog h3 { margin: 0; font-family: var(--font-display); font-stretch: 112%; font-size: 20px; }
+.two { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.check { display: flex; gap: 8px; align-items: center; font-size: 14px; }
+.actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.actions .spacer { flex: 1; }
+.err { color: var(--bad); font-size: 13px; margin: 0; min-height: 1em; }
+.foot { font-size: 12px; color: var(--muted); max-width: 90ch; }
+</style>
+</head>
+<body>
+
+<div class="app">
+  <header class="top">
+    <div>
+      <div class="eyebrow">Budget · Abos · Krankenkasse</div>
+      <h1>Haushaltsbuch</h1>
+    </div>
+    <p class="privacy">Alle Zahlen bleiben in diesem Browser gespeichert und werden nirgends hochgeladen.</p>
+  </header>
+
+  <section class="stats" aria-label="Monatsübersicht">
+    <div class="stat"><span class="k">Einnahmen / Monat</span><span class="v" id="stIn"></span><span class="s" id="stInS"></span></div>
+    <div class="stat"><span class="k">Ausgaben / Monat</span><span class="v" id="stOut"></span><span class="s" id="stOutS"></span></div>
+    <div class="stat"><span class="k">Frei verfügbar</span><span class="v" id="stFree"></span><span class="s" id="stFreeS"></span></div>
+    <div class="stat"><span class="k">Abos pro Jahr</span><span class="v" id="stAbo"></span><span class="s" id="stAboS"></span></div>
+  </section>
+
+  <div class="notice" id="notice" hidden>
+    <span>Die Zahlen mit dem Vermerk <strong>Beispiel</strong> sind Musterdaten. Ersetze sie durch deine eigenen.</span>
+    <button class="link" id="clearEx">Alle Beispiele entfernen</button>
+  </div>
+
+  <nav class="tabs" role="tablist">
+    <button class="tab" role="tab" id="t-budget" data-tab="budget">Budget</button>
+    <button class="tab" role="tab" id="t-abos" data-tab="abos">Abos <span class="cnt" id="aboCnt"></span></button>
+    <button class="tab" role="tab" id="t-krankenkasse" data-tab="krankenkasse">Krankenkasse</button>
+  </nav>
+
+  <!-- Budget -->
+  <section class="panel" id="p-budget" role="tabpanel" aria-labelledby="t-budget">
+    <div class="card">
+      <div class="card-head"><h2>Einnahmen</h2><button class="btn" data-add="income">+ Einnahme</button></div>
+      <ul class="rows" id="incList"></ul>
+      <div class="card-head"><h2>Ausgaben</h2><button class="btn" data-add="expense">+ Ausgabe</button></div>
+      <ul class="rows" id="expList"></ul>
+      <div class="total"><span>Total Ausgaben pro Monat</span><span class="num" id="expTotal"></span></div>
+    </div>
+    <div class="card">
+      <h2>Wohin geht dein Geld?</h2>
+      <p class="hint">Ausgaben pro Monat nach Kategorie, in Prozent deiner Einnahmen.</p>
+      <div class="bars" id="catBars"></div>
+      <div class="verdict" id="budgetVerdict"></div>
+    </div>
+  </section>
+
+  <!-- Abos -->
+  <section class="panel" id="p-abos" role="tabpanel" aria-labelledby="t-abos" hidden>
+    <div class="card">
+      <div class="card-head"><h2>Deine Abos</h2><button class="btn primary" data-add="abo">+ Abo</button></div>
+      <p class="hint">Sortiert nach der nächsten Kündigungsfrist. Pausierte Abos zählen nicht zu den Kosten.</p>
+      <ul class="rows" id="aboList"></ul>
+      <div class="total"><span>Total pro Monat</span><span class="num" id="aboTotal"></span></div>
+    </div>
+    <div class="card">
+      <h2>Kosten im Vergleich</h2>
+      <p class="hint">Jahreskosten pro Abo. So siehst du, welches am meisten kostet.</p>
+      <div class="bars" id="aboBars"></div>
+      <div class="verdict" id="aboVerdict"></div>
+    </div>
+  </section>
+
+  <!-- Krankenkasse -->
+  <section class="panel" id="p-krankenkasse" role="tabpanel" aria-labelledby="t-krankenkasse" hidden>
+    <div class="card">
+      <h2>Welche Franchise lohnt sich?</h2>
+      <p class="hint">Trage die Monatsprämien deiner Grundversicherung für jede Franchise ein. Du findest sie in deiner Offerte oder auf <a href="https://www.priminfo.admin.ch" target="_blank" rel="noopener">priminfo.admin.ch</a>. Berechnung für Erwachsene ab 19 Jahren.</p>
+      <div class="field"><label for="kkName">Versicherung / Modell</label><input id="kkName" type="text" maxlength="60" placeholder="z. B. Hausarztmodell"></div>
+      <h3>Monatsprämie in CHF je Franchise</h3>
+      <div class="kk-grid" id="kkPrem"></div>
+      <div class="slider">
+        <label for="kkCosts" class="readout"><span class="hint">Erwartete Arzt- und Medikamentenkosten pro Jahr</span><span class="num" id="kkCostsOut"></span></label>
+        <input type="range" id="kkCosts" min="0" max="10000" step="100">
+      </div>
+      <div class="deadline">
+        <span class="big" id="kkDays"></span>
+        <span class="hint" id="kkDeadline"></span>
+      </div>
+    </div>
+    <div class="card">
+      <h2>Jahreskosten je Franchise</h2>
+      <div class="legend"><span style="--c:var(--s1)"><i></i>Prämien</span><span style="--c:var(--s2)"><i></i>Franchise</span><span style="--c:var(--s3)"><i></i>Selbstbehalt 10 %</span></div>
+      <div class="bars" id="kkBars"></div>
+      <div class="verdict" id="kkVerdict"></div>
+      <div><h3>Günstigste Franchise je nach Arztkosten</h3></div>
+      <ul class="ranges" id="kkRanges"></ul>
+      <details>
+        <summary>Als Tabelle anzeigen</summary>
+        <div class="table-wrap"><table id="kkTable"></table></div>
+      </details>
+      <button class="btn" id="kkToBudget"></button>
+    </div>
+  </section>
+
+  <p class="foot">Krankenkasse: Jahreskosten = 12 × Monatsprämie + Franchise + 10 % Selbstbehalt auf die Kosten über der Franchise (höchstens CHF 700 pro Jahr). Spitalbeitrag, Unfalldeckung und Zusatzversicherungen sind nicht berücksichtigt. Die Prämien in den Beispielen sind ungefähre Werte und keine echte Offerte.</p>
+</div>
+
+<div class="tip" id="tip" hidden></div>
+
+<dialog id="dlg">
+  <form id="form" novalidate>
+    <h3 id="dlgTitle"></h3>
+    <div id="dlgFields" style="display:grid;gap:12px"></div>
+    <p class="err" id="err"></p>
+    <div class="actions">
+      <button type="button" class="btn danger" id="delBtn" hidden>Löschen</button>
+      <span class="spacer"></span>
+      <button type="button" class="btn" id="cancelBtn">Abbrechen</button>
+      <button type="submit" class="btn primary">Speichern</button>
+    </div>
+  </form>
+</dialog>
+
+<script>
+(() => {
+  const KEY = 'haushaltsbuch.v1';
+  const FRANCHISES = [300, 500, 1000, 1500, 2000, 2500];
+  const SB_MAX = 700;
+  const EXP_CATS = ['Wohnen', 'Krankenkasse', 'Versicherungen', 'Steuern', 'Lebensmittel', 'Mobilität', 'Freizeit', 'Sparen', 'Diverses'];
+  const ABO_CATS = ['Streaming', 'Telefon & Internet', 'Fitness', 'Zeitung & Medien', 'Software', 'Mobilität', 'Diverses'];
+  const PERIODS = { m: { name: 'monatlich', months: 1 }, q: { name: 'vierteljährlich', months: 3 }, y: { name: 'jährlich', months: 12 } };
+
+  const $ = id => document.getElementById(id);
+  const chf = new Intl.NumberFormat('de-CH', { style: 'currency', currency: 'CHF', minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const chf0 = new Intl.NumberFormat('de-CH', { style: 'currency', currency: 'CHF', maximumFractionDigits: 0 });
+  const money = v => chf.format(v);
+  const money0 = v => chf0.format(Math.round(v));
+  const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+  const pad = n => String(n).padStart(2, '0');
+  const iso = d => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  const parse = s => { const [y, m, d] = s.split('-').map(Number); return new Date(y, m - 1, d); };
+  const fmtDate = d => `${pad(d.getDate())}.${pad(d.getMonth() + 1)}.${d.getFullYear()}`;
+  const addMonths = (d, n) => {
+    const t = new Date(d.getFullYear(), d.getMonth() + n, 1);
+    const last = new Date(t.getFullYear(), t.getMonth() + 1, 0).getDate();
+    return new Date(t.getFullYear(), t.getMonth(), Math.min(d.getDate(), last));
+  };
+  const today = () => { const n = new Date(); return new Date(n.getFullYear(), n.getMonth(), n.getDate()); };
+  const daysBetween = (a, b) => Math.round((b - a) / 86400000);
+  const monthly = (amount, period) => amount / PERIODS[period].months;
+
+  // Beispieldaten
+  function examples() {
+    const t = today();
+    const inMonths = (m, day) => iso(new Date(t.getFullYear(), t.getMonth() + m, day));
+    return {
+      income: [
+        { id: uid(), name: 'Lohn (netto)', amount: 5600, period: 'm', example: true },
+        { id: uid(), name: '13. Monatslohn', amount: 5600, period: 'y', example: true },
+      ],
+      expenses: [
+        { id: uid(), name: 'Miete inkl. Nebenkosten', cat: 'Wohnen', amount: 1650, period: 'm', example: true },
+        { id: uid(), name: 'Krankenkasse Grundversicherung', cat: 'Krankenkasse', amount: 392, period: 'm', example: true, kk: true },
+        { id: uid(), name: 'Hausrat- und Haftpflicht', cat: 'Versicherungen', amount: 290, period: 'y', example: true },
+        { id: uid(), name: 'Steuern (Rückstellung)', cat: 'Steuern', amount: 6600, period: 'y', example: true },
+        { id: uid(), name: 'Lebensmittel', cat: 'Lebensmittel', amount: 650, period: 'm', example: true },
+        { id: uid(), name: 'GA / Halbtax und Billette', cat: 'Mobilität', amount: 120, period: 'm', example: true },
+        { id: uid(), name: 'Ausgang und Hobbys', cat: 'Freizeit', amount: 300, period: 'm', example: true },
+        { id: uid(), name: 'Säule 3a', cat: 'Sparen', amount: 7258, period: 'y', example: true },
+      ],
+      abos: [
+        { id: uid(), name: 'Netflix', cat: 'Streaming', price: 18.90, period: 'm', renew: inMonths(1, 5), notice: 0, active: true, example: true },
+        { id: uid(), name: 'Spotify', cat: 'Streaming', price: 13.95, period: 'm', renew: inMonths(1, 12), notice: 0, active: true, example: true },
+        { id: uid(), name: 'Handyabo', cat: 'Telefon & Internet', price: 39.00, period: 'm', renew: inMonths(2, 1), notice: 2, active: true, example: true },
+        { id: uid(), name: 'Internet zu Hause', cat: 'Telefon & Internet', price: 59.00, period: 'm', renew: inMonths(4, 1), notice: 2, active: true, example: true },
+        { id: uid(), name: 'Fitnessstudio', cat: 'Fitness', price: 890, period: 'y', renew: inMonths(2, 1), notice: 2, active: true, example: true },
+        { id: uid(), name: 'Zeitung digital', cat: 'Zeitung & Medien', price: 220, period: 'y', renew: inMonths(5, 15), notice: 1, active: true, example: true },
+        { id: uid(), name: 'Cloud-Speicher', cat: 'Software', price: 3.00, period: 'm', renew: inMonths(0, 28), notice: 0, active: false, example: true },
+      ],
+      kk: { name: 'Hausarztmodell', premiums: { 300: 520, 500: 508, 1000: 479, 1500: 450, 2000: 421, 2500: 392 }, costs: 1200, example: true },
+    };
+  }
+
+  let S;
+  function load() {
+    try { const raw = localStorage.getItem(KEY); if (raw) { const v = JSON.parse(raw); if (v && v.income && v.expenses && v.abos && v.kk) return v; } } catch (_) {}
+    return null;
+  }
+  function save() { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (_) {} }
+
+  // Berechnungen
+  const aboMonthly = a => a.active ? monthly(a.price, a.period) : 0;
+  const aboTotalM = () => S.abos.reduce((s, a) => s + aboMonthly(a), 0);
+  const incomeM = () => S.income.reduce((s, i) => s + monthly(i.amount, i.period), 0);
+  const expensesM = () => S.expenses.reduce((s, e) => s + monthly(e.amount, e.period), 0) + aboTotalM();
+
+  function nextDeadline(a) {
+    // Nächste Verlängerung, bei der die Kündigung noch rechtzeitig möglich ist
+    const t = today();
+    let renew = parse(a.renew), guard = 0;
+    while (addMonths(renew, -a.notice) < t && guard++ < 600) renew = addMonths(renew, PERIODS[a.period].months);
+    return { renew, deadline: addMonths(renew, -a.notice) };
+  }
+
+  function kkTotal(f, costs) {
+    const prem = 12 * (Number(S.kk.premiums[f]) || 0);
+    const fr = Math.min(costs, f);
+    const sb = Math.min(0.1 * Math.max(0, costs - f), SB_MAX);
+    return { f, prem, fr, sb, total: prem + fr + sb };
+  }
+  const kkBest = costs => FRANCHISES.map(f => kkTotal(f, costs)).reduce((a, b) => (b.total < a.total ? b : a));
+
+  // Balken mit Hover
+  const tip = $('tip');
+  function bindTips(root) {
+    root.querySelectorAll('[data-tip]').forEach(el => {
+      el.addEventListener('pointermove', e => {
+        tip.innerHTML = el.dataset.tip; tip.hidden = false;
+        const w = tip.offsetWidth, h = tip.offsetHeight;
+        tip.style.left = Math.min(e.clientX + 12, innerWidth - w - 8) + 'px';
+        tip.style.top = Math.max(8, e.clientY - h - 10) + 'px';
+      });
+      el.addEventListener('pointerleave', () => { tip.hidden = true; });
+    });
+  }
+
+  // Rendern
+  function renderStats() {
+    const inc = incomeM(), out = expensesM(), free = inc - out;
+    $('stIn').textContent = money(inc);
+    $('stInS').textContent = `${money0(inc * 12)} pro Jahr`;
+    $('stOut').textContent = money(out);
+    $('stOutS').textContent = inc ? `${Math.round(out / inc * 100)} % der Einnahmen` : 'Noch keine Einnahmen erfasst';
+    $('stFree').textContent = money(free);
+    $('stFree').className = 'v ' + (free >= 0 ? 'good' : 'bad');
+    const saving = S.expenses.filter(e => e.cat === 'Sparen').reduce((s, e) => s + monthly(e.amount, e.period), 0);
+    $('stFreeS').textContent = inc ? `Sparquote inkl. Sparen: ${Math.round((free + saving) / inc * 100)} %` : '';
+    const ab = aboTotalM();
+    $('stAbo').textContent = money0(ab * 12);
+    const soon = S.abos.filter(a => a.active && daysBetween(today(), nextDeadline(a).deadline) <= 30).length;
+    $('stAboS').textContent = soon ? `${soon} Kündigungsfrist${soon > 1 ? 'en' : ''} in den nächsten 30 Tagen` : `${S.abos.filter(a => a.active).length} aktive Abos`;
+    $('aboCnt').textContent = S.abos.filter(a => a.active).length;
+    const hasEx = S.income.some(x => x.example) || S.expenses.some(x => x.example) || S.abos.some(x => x.example) || S.kk.example;
+    $('notice').hidden = !hasEx;
+  }
+
+  const exTag = x => (x.example ? '<span class="tag">Beispiel</span>' : '');
+  const periodAmt = (amount, period) => period === 'm'
+    ? money(amount)
+    : `${money(monthly(amount, period))}<small>${money(amount)} ${PERIODS[period].name}</small>`;
+
+  function renderBudget() {
+    $('incList').innerHTML = S.income.length ? S.income.map(i => `<li><button class="row" data-edit="income" data-id="${i.id}">
+      <span class="name">${esc(i.name)}${exTag(i)}</span><span class="amt">${periodAmt(i.amount, i.period)}</span>
+      <span class="sub">${PERIODS[i.period].name}</span></button></li>`).join('') : '<li class="empty">Noch keine Einnahmen. Füge deinen Lohn hinzu.</li>';
+
+    const exps = [...S.expenses].sort((a, b) => EXP_CATS.indexOf(a.cat) - EXP_CATS.indexOf(b.cat));
+    let html = exps.map(e => `<li><button class="row" data-edit="expense" data-id="${e.id}">
+      <span class="name">${esc(e.name)}${exTag(e)}</span><span class="amt">${periodAmt(e.amount, e.period)}</span>
+      <span class="sub">${esc(e.cat)} · ${PERIODS[e.period].name}</span></button></li>`).join('');
+    const ab = aboTotalM();
+    html += `<li><button class="row auto" data-goto="abos">
+      <span class="name">Abos</span><span class="amt">${money(ab)}</span>
+      <span class="sub">Automatisch aus dem Register Abos</span></button></li>`;
+    $('expList').innerHTML = html;
+    $('expTotal').textContent = money(expensesM());
+
+    // Kategorien
+    const byCat = {};
+    S.expenses.forEach(e => { byCat[e.cat] = (byCat[e.cat] || 0) + monthly(e.amount, e.period); });
+    if (ab) byCat['Abos'] = ab;
+    const inc = incomeM();
+    const entries = Object.entries(byCat).sort((a, b) => b[1] - a[1]);
+    const max = Math.max(1, ...entries.map(e => e[1]));
+    $('catBars').innerHTML = entries.length ? entries.map(([c, v]) => {
+      const pct = inc ? Math.round(v / inc * 100) : 0;
+      return `<div class="bar"><span class="lbl">${esc(c)}</span>
+        <span class="track"><span class="seg" style="--c:var(--s1);width:${v / max * 100}%" data-tip="${esc(c)}<br><span class='num'>${money(v)}</span> pro Monat · ${pct} %"></span></span>
+        <span class="val">${money0(v)} · ${pct} %</span></div>`;
+    }).join('') : '<p class="empty">Noch keine Ausgaben erfasst.</p>';
+    bindTips($('catBars'));
+
+    const free = inc - expensesM();
+    const v = $('budgetVerdict');
+    if (!inc) { v.style.borderLeftColor = 'var(--muted)'; v.innerHTML = 'Erfasse deine Einnahmen, dann siehst du, wie viel dir bleibt.'; }
+    else if (free >= 0) { v.style.borderLeftColor = 'var(--good)'; v.innerHTML = `<strong>${money0(free)} bleiben dir jeden Monat.</strong><br><span class="hint">Das sind ${money0(free * 12)} pro Jahr für Ferien, Rücklagen oder zusätzliches Sparen.</span>`; }
+    else { v.style.borderLeftColor = 'var(--bad)'; v.innerHTML = `<strong>Dir fehlen ${money0(-free)} pro Monat.</strong><br><span class="hint">Schau dir die grössten Kategorien und deine Abos an.</span>`; }
+  }
+
+  function renderAbos() {
+    const t = today();
+    const list = S.abos.map(a => ({ a, ...nextDeadline(a) })).sort((x, y) => (y.a.active - x.a.active) || (x.deadline - y.deadline));
+    $('aboList').innerHTML = list.length ? list.map(({ a, renew, deadline }) => {
+      const days = daysBetween(t, deadline);
+      let pill;
+      if (!a.active) pill = '<span class="pill mute">pausiert</span>';
+      else if (days <= 7) pill = `<span class="pill bad">Kündigen bis ${fmtDate(deadline)}</span>`;
+      else if (days <= 30) pill = `<span class="pill warn">Kündigen bis ${fmtDate(deadline)}</span>`;
+      else pill = `<span class="pill ok">Kündigen bis ${fmtDate(deadline)}</span>`;
+      return `<li><button class="row${a.active ? '' : ' off'}" data-edit="abo" data-id="${a.id}">
+        <span class="name">${esc(a.name)}${exTag(a)}</span><span class="amt">${periodAmt(a.price, a.period)}</span>
+        <span class="sub">${esc(a.cat)} · verlängert sich am ${fmtDate(renew)} · ${pill}</span></button></li>`;
+    }).join('') : '<li class="empty">Noch keine Abos. Füge dein erstes Abo hinzu.</li>';
+    $('aboTotal').textContent = money(aboTotalM());
+
+    const act = S.abos.filter(a => a.active).map(a => [a, aboMonthly(a) * 12]).sort((x, y) => y[1] - x[1]);
+    const max = Math.max(1, ...act.map(x => x[1]));
+    $('aboBars').innerHTML = act.length ? act.map(([a, y]) => `<div class="bar"><span class="lbl">${esc(a.name)}</span>
+      <span class="track"><span class="seg" style="--c:var(--s1);width:${y / max * 100}%" data-tip="${esc(a.name)}<br><span class='num'>${money(y)}</span> pro Jahr"></span></span>
+      <span class="val">${money0(y)}</span></div>`).join('') : '<p class="empty">Keine aktiven Abos.</p>';
+    bindTips($('aboBars'));
+
+    const v = $('aboVerdict');
+    const next = list.find(x => x.a.active);
+    if (!next) { v.innerHTML = 'Füge Abos hinzu, um Kosten und Kündigungsfristen im Blick zu behalten.'; v.style.borderLeftColor = 'var(--muted)'; return; }
+    const d = daysBetween(t, next.deadline);
+    v.style.borderLeftColor = d <= 7 ? 'var(--bad)' : d <= 30 ? 'var(--warn)' : 'var(--good)';
+    v.innerHTML = `<strong>Nächste Frist: ${esc(next.a.name)}</strong><br><span class="hint">Kündigen bis ${fmtDate(next.deadline)} (${d === 0 ? 'heute' : `in ${d} Tag${d === 1 ? '' : 'en'}`}), sonst verlängert es sich am ${fmtDate(next.renew)}. Alle Abos zusammen kosten ${money0(aboTotalM() * 12)} pro Jahr.</span>`;
+  }
+
+  function renderKK() {
+    const costs = Number(S.kk.costs) || 0;
+    $('kkCostsOut').textContent = money0(costs);
+    const rows = FRANCHISES.map(f => kkTotal(f, costs));
+    const best = rows.reduce((a, b) => (b.total < a.total ? b : a));
+    const max = Math.max(1, ...rows.map(r => r.total));
+    const seg = (v, c, label, f) => v > 0 ? `<span class="seg" style="--c:var(${c});width:${v / max * 100}%" data-tip="Franchise ${money0(f)}<br>${label}: <span class='num'>${money0(v)}</span>"></span>` : '';
+    $('kkBars').innerHTML = rows.map(r => `<div class="bar${r.f === best.f ? ' best' : ''}">
+      <span class="lbl">CHF ${r.f.toLocaleString('de-CH')}${r.f === best.f ? ' <span class="pill ok">günstigste</span>' : ''}</span>
+      <span class="track">${seg(r.prem, '--s1', 'Prämien', r.f)}${seg(r.fr, '--s2', 'Franchise', r.f)}${seg(r.sb, '--s3', 'Selbstbehalt', r.f)}</span>
+      <span class="val">${money0(r.total)}</span></div>`).join('');
+    bindTips($('kkBars'));
+
+    const worst = rows.reduce((a, b) => (b.total > a.total ? b : a));
+    $('kkVerdict').innerHTML = `<strong>Franchise ${money0(best.f)} ist für dich am günstigsten.</strong><br><span class="hint">Bei ${money0(costs)} Arztkosten im Jahr zahlst du total ${money0(best.total)}. Das sind ${money0(worst.total - best.total)} weniger als mit Franchise ${money0(worst.f)}.</span>`;
+
+    // Bereiche, in denen jeweils eine Franchise am günstigsten ist
+    const ranges = [];
+    for (let c = 0; c <= 15000; c += 50) {
+      const b = kkBest(c).f;
+      if (!ranges.length || ranges[ranges.length - 1].f !== b) ranges.push({ f: b, from: c });
+    }
+    $('kkRanges').innerHTML = ranges.map((r, i) => {
+      const to = ranges[i + 1] ? ranges[i + 1].from - 50 : null;
+      return `<li><span>${to === null ? `ab ${money0(r.from)}` : `${money0(r.from)} bis ${money0(to)}`}</span><span class="num">Franchise ${money0(r.f)}</span></li>`;
+    }).join('');
+
+    $('kkTable').innerHTML = `<thead><tr><th>Franchise</th><th>Prämie / Mt.</th><th>Prämien / Jahr</th><th>Franchise</th><th>Selbstbehalt</th><th>Total</th></tr></thead><tbody>` +
+      rows.map(r => `<tr class="${r.f === best.f ? 'best' : ''}"><td>${money0(r.f)}</td><td>${money(Number(S.kk.premiums[r.f]) || 0)}</td><td>${money0(r.prem)}</td><td>${money0(r.fr)}</td><td>${money0(r.sb)}</td><td>${money0(r.total)}</td></tr>`).join('') + '</tbody>';
+
+    $('kkToBudget').textContent = `Prämie für Franchise ${money0(best.f)} ins Budget übernehmen (${money(Number(S.kk.premiums[best.f]) || 0)} pro Monat)`;
+    $('kkToBudget').dataset.f = best.f;
+
+    // Wechselfrist: Kündigung der Grundversicherung bis 30. November
+    const t = today();
+    let dl = new Date(t.getFullYear(), 10, 30);
+    if (dl < t) dl = new Date(t.getFullYear() + 1, 10, 30);
+    const d = daysBetween(t, dl);
+    $('kkDays').textContent = `${d} Tage`;
+    $('kkDeadline').innerHTML = `bis zum 30. November ${dl.getFullYear()}. Bis dann muss die Kündigung bei deiner Krankenkasse eingetroffen sein, wenn du auf den 1. Januar die Kasse wechseln oder eine tiefere Franchise wählen willst. Eine höhere Franchise geht bis 31. Dezember.`;
+  }
+
+  function renderKKInputs() {
+    $('kkName').value = S.kk.name || '';
+    $('kkPrem').innerHTML = FRANCHISES.map(f => `<div class="field"><label for="kkp-${f}">Franchise ${f.toLocaleString('de-CH')}</label>
+      <input class="num" id="kkp-${f}" data-f="${f}" type="number" inputmode="decimal" min="0" step="0.05" value="${S.kk.premiums[f] ?? ''}"></div>`).join('');
+    $('kkCosts').value = S.kk.costs;
+  }
+
+  function renderAll() { renderStats(); renderBudget(); renderAbos(); renderKK(); }
+
+  // Register
+  function showTab(name) {
+    if (!['budget', 'abos', 'krankenkasse'].includes(name)) name = 'budget';
+    document.querySelectorAll('.tab').forEach(t => t.setAttribute('aria-selected', String(t.dataset.tab === name)));
+    document.querySelectorAll('[role=tabpanel]').forEach(p => { p.hidden = p.id !== 'p-' + name; });
+    try { history.replaceState(null, '', '#' + name); } catch (_) {}
+    try { localStorage.setItem(KEY + '.tab', name); } catch (_) {}
+  }
+  document.querySelector('.tabs').addEventListener('click', e => { const t = e.target.closest('.tab'); if (t) showTab(t.dataset.tab); });
+
+  // Dialog
+  const dlg = $('dlg');
+  let editing = null; // { kind, id }
+  const SPECS = {
+    income: { title: 'Einnahme', list: () => S.income, fields: [
+      { k: 'name', label: 'Bezeichnung', type: 'text', ph: 'z. B. Lohn' },
+      { k: 'amount', label: 'Betrag in CHF', type: 'money' },
+      { k: 'period', label: 'Rhythmus', type: 'period' },
+    ] },
+    expense: { title: 'Ausgabe', list: () => S.expenses, fields: [
+      { k: 'name', label: 'Bezeichnung', type: 'text', ph: 'z. B. Miete' },
+      { k: 'cat', label: 'Kategorie', type: 'select', options: EXP_CATS },
+      { k: 'amount', label: 'Betrag in CHF', type: 'money' },
+      { k: 'period', label: 'Rhythmus', type: 'period' },
+    ] },
+    abo: { title: 'Abo', list: () => S.abos, fields: [
+      { k: 'name', label: 'Name', type: 'text', ph: 'z. B. Netflix' },
+      { k: 'cat', label: 'Kategorie', type: 'select', options: ABO_CATS },
+      { k: 'price', label: 'Preis in CHF', type: 'money' },
+      { k: 'period', label: 'Abrechnung', type: 'period' },
+      { k: 'renew', label: 'Nächste Verlängerung', type: 'date' },
+      { k: 'notice', label: 'Kündigungsfrist', type: 'notice' },
+      { k: 'active', label: 'Abo ist aktiv', type: 'check' },
+    ] },
+  };
+
+  function fieldHtml(f, v) {
+    const id = 'f-' + f.k;
+    switch (f.type) {
+      case 'text': return `<div class="field"><label for="${id}">${f.label}</label><input id="${id}" type="text" maxlength="80" placeholder="${f.ph || ''}" value="${esc(v ?? '')}"></div>`;
+      case 'money': return `<div class="field"><label for="${id}">${f.label}</label><input id="${id}" class="num" type="number" inputmode="decimal" min="0" step="0.05" value="${v ?? ''}"></div>`;
+      case 'date': return `<div class="field"><label for="${id}">${f.label}</label><input id="${id}" type="date" value="${v ?? ''}"></div>`;
+      case 'select': return `<div class="field"><label for="${id}">${f.label}</label><select id="${id}">${f.options.map(o => `<option${o === v ? ' selected' : ''}>${o}</option>`).join('')}</select></div>`;
+      case 'period': return `<div class="field"><label for="${id}">${f.label}</label><select id="${id}">${Object.entries(PERIODS).map(([k, p]) => `<option value="${k}"${k === v ? ' selected' : ''}>${p.name}</option>`).join('')}</select></div>`;
+      case 'notice': return `<div class="field"><label for="${id}">${f.label}</label><select id="${id}">${[0, 1, 2, 3, 6].map(n => `<option value="${n}"${n === Number(v) ? ' selected' : ''}>${n === 0 ? 'jederzeit bis zur Verlängerung' : `${n} Monat${n > 1 ? 'e' : ''} vorher`}</option>`).join('')}</select></div>`;
+      case 'check': return `<label class="check"><input id="${id}" type="checkbox"${v ? ' checked' : ''}> ${f.label}</label>`;
+    }
+  }
+
+  function openDlg(kind, id) {
+    const spec = SPECS[kind];
+    const item = id ? spec.list().find(x => x.id === id) : null;
+    editing = { kind, id: item ? item.id : null };
+    const defaults = { period: 'm', cat: kind === 'abo' ? ABO_CATS[0] : EXP_CATS[EXP_CATS.length - 1], renew: iso(addMonths(today(), 1)), notice: 0, active: true };
+    $('dlgTitle').textContent = item ? `${spec.title} bearbeiten` : { income: 'Neue Einnahme', expense: 'Neue Ausgabe', abo: 'Neues Abo' }[kind];
+    $('dlgFields').innerHTML = spec.fields.map(f => fieldHtml(f, item ? item[f.k] : defaults[f.k])).join('');
+    $('err').textContent = '';
+    const del = $('delBtn'); del.hidden = !item; del.classList.remove('armed'); del.textContent = 'Löschen';
+    dlg.showModal ? dlg.showModal() : dlg.setAttribute('open', '');
+    $('f-name').focus();
+  }
+  const closeDlg = () => { dlg.close ? dlg.close() : dlg.removeAttribute('open'); };
+
+  $('form').addEventListener('submit', e => {
+    e.preventDefault();
+    const spec = SPECS[editing.kind];
+    const data = {};
+    for (const f of spec.fields) {
+      const el = $('f-' + f.k);
+      if (f.type === 'check') data[f.k] = el.checked;
+      else if (f.type === 'money') data[f.k] = el.value === '' ? NaN : Number(el.value);
+      else if (f.type === 'notice') data[f.k] = Number(el.value);
+      else data[f.k] = el.value.trim();
+    }
+    if (!data.name) { $('err').textContent = 'Bitte gib eine Bezeichnung ein.'; $('f-name').focus(); return; }
+    const moneyKey = spec.fields.find(f => f.type === 'money').k;
+    if (!(data[moneyKey] >= 0)) { $('err').textContent = 'Bitte gib einen Betrag von 0 oder mehr ein.'; $('f-' + moneyKey).focus(); return; }
+    if (editing.kind === 'abo' && !/^\d{4}-\d{2}-\d{2}$/.test(data.renew)) { $('err').textContent = 'Bitte wähle das Datum der nächsten Verlängerung.'; $('f-renew').focus(); return; }
+    const list = spec.list();
+    if (editing.id) Object.assign(list.find(x => x.id === editing.id), data, { example: false });
+    else list.push({ id: uid(), ...data });
+    save(); closeDlg(); renderAll();
+  });
+  $('delBtn').addEventListener('click', () => {
+    const b = $('delBtn');
+    if (!b.classList.contains('armed')) { b.classList.add('armed'); b.textContent = 'Wirklich löschen?'; return; }
+    const spec = SPECS[editing.kind];
+    const list = spec.list();
+    list.splice(list.findIndex(x => x.id === editing.id), 1);
+    save(); closeDlg(); renderAll();
+  });
+  $('cancelBtn').addEventListener('click', closeDlg);
+
+  document.addEventListener('click', e => {
+    const add = e.target.closest('[data-add]'); if (add) return openDlg(add.dataset.add);
+    const ed = e.target.closest('[data-edit]'); if (ed) return openDlg(ed.dataset.edit, ed.dataset.id);
+    const go = e.target.closest('[data-goto]'); if (go) return showTab(go.dataset.goto);
+  });
+
+  // Krankenkasse-Eingaben
+  $('kkPrem').addEventListener('input', e => {
+    const el = e.target.closest('input[data-f]'); if (!el) return;
+    S.kk.premiums[el.dataset.f] = el.value === '' ? 0 : Number(el.value);
+    S.kk.example = false; save(); renderKK(); renderStats();
+  });
+  $('kkCosts').addEventListener('input', e => { S.kk.costs = Number(e.target.value); save(); renderKK(); });
+  $('kkName').addEventListener('input', e => { S.kk.name = e.target.value; save(); });
+  $('kkToBudget').addEventListener('click', () => {
+    const f = Number($('kkToBudget').dataset.f);
+    const prem = Number(S.kk.premiums[f]) || 0;
+    const name = `Krankenkasse${S.kk.name ? ' ' + S.kk.name : ''} (Franchise ${f.toLocaleString('de-CH')})`;
+    let e = S.expenses.find(x => x.kk);
+    if (e) Object.assign(e, { name, amount: prem, period: 'm', cat: 'Krankenkasse', example: false });
+    else S.expenses.push({ id: uid(), name, cat: 'Krankenkasse', amount: prem, period: 'm', kk: true });
+    save(); renderAll();
+    const b = $('kkToBudget'); const old = b.textContent;
+    b.textContent = 'Ins Budget übernommen'; setTimeout(() => { b.textContent = old; }, 1600);
+  });
+
+  $('clearEx').addEventListener('click', () => {
+    S.income = S.income.filter(x => !x.example);
+    S.expenses = S.expenses.filter(x => !x.example);
+    S.abos = S.abos.filter(x => !x.example);
+    if (S.kk.example) S.kk = { name: '', premiums: {}, costs: 1000, example: false };
+    save(); renderKKInputs(); renderAll();
+  });
+
+  // Start
+  const stored = load();
+  S = stored || examples();
+  if (!stored) save();
+  renderKKInputs();
+  renderAll();
+  let start = (location.hash || '').slice(1);
+  if (!start) { try { start = localStorage.getItem(KEY + '.tab') || ''; } catch (_) {} }
+  showTab(start);
+})();
+</script>
+</body>
+</html>
