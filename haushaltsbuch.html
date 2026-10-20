@@ -30,6 +30,7 @@
   --s1: #2a78d6;
   --s2: #eb6834;
   --s3: #1baf7a;
+  --s4: #eda100;
   --font-display: "Archivo", "Helvetica Neue", Arial, sans-serif;
   --font-body: "Archivo", "Helvetica Neue", Arial, sans-serif;
   --font-mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
@@ -38,13 +39,13 @@
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     --bg: #0f1513; --surface: #161e1b; --ink: #e6ecea; --muted: #93a29d; --line: #2a3531; --soft: #1e2824;
-    --good: #5cc796; --warn: #f0b542; --bad: #ff7a6e; --s1: #3987e5; --s2: #d95926; --s3: #199e70;
+    --good: #5cc796; --warn: #f0b542; --bad: #ff7a6e; --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500;
     color-scheme: dark;
   }
 }
 :root[data-theme="dark"] {
   --bg: #0f1513; --surface: #161e1b; --ink: #e6ecea; --muted: #93a29d; --line: #2a3531; --soft: #1e2824;
-  --good: #5cc796; --warn: #f0b542; --bad: #ff7a6e; --s1: #3987e5; --s2: #d95926; --s3: #199e70;
+  --good: #5cc796; --warn: #f0b542; --bad: #ff7a6e; --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s4: #c98500;
   color-scheme: dark;
 }
 [hidden] { display: none !important; }
@@ -199,6 +200,22 @@ dialog h3 { margin: 0; font-family: var(--font-display); font-stretch: 112%; fon
 .sums .v { font-family: var(--font-mono); font-size: 18px; font-weight: 600; font-variant-numeric: tabular-nums; }
 .recur { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; font-size: 13.5px; }
 .recur li { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 6px 10px; align-items: center; }
+.split { display: flex; gap: 2px; height: 22px; }
+.split span { height: 100%; background: var(--c); min-width: 2px; }
+.split span:first-child { border-radius: 4px 0 0 4px; }
+.split span:last-child { border-radius: 0 4px 4px 0; }
+.split .free { background: var(--soft); box-shadow: inset 0 0 0 1px var(--line); }
+.glegend { display: grid; gap: 6px; font-size: 13px; }
+.glegend div { display: grid; grid-template-columns: 12px minmax(0, 1fr) auto auto; gap: 8px; align-items: center; }
+.glegend i { width: 10px; height: 10px; border-radius: 2px; background: var(--c); display: block; }
+.glegend i.free { background: var(--soft); box-shadow: inset 0 0 0 1px var(--muted); }
+.glegend .num { text-align: right; white-space: nowrap; }
+.glegend .pct { color: var(--muted); min-width: 3.5em; }
+.ghead { display: flex; justify-content: space-between; gap: 10px; align-items: baseline; padding: 14px 4px 4px; border-top: 0 !important; }
+.ghead span:first-child { font-size: 12px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; display: inline-flex; gap: 7px; align-items: center; }
+.ghead i { width: 10px; height: 10px; border-radius: 2px; background: var(--c); display: block; }
+.ghead .num { font-size: 13px; color: var(--muted); }
+.rows li.ghead + li { border-top: 0; }
 .foot { font-size: 12px; color: var(--muted); max-width: 90ch; }
 </style>
 </head>
@@ -243,7 +260,11 @@ dialog h3 { margin: 0; font-family: var(--font-display); font-stretch: 112%; fon
     </div>
     <div class="card">
       <h2>Wohin geht dein Geld?</h2>
-      <p class="hint">Ausgaben pro Monat nach Kategorie, in Prozent deiner Einnahmen.</p>
+      <p class="hint">So teilt sich dein Einkommen pro Monat auf.</p>
+      <div class="split" id="split" role="img"></div>
+      <div class="glegend" id="glegend"></div>
+      <p class="hint" id="rule"></p>
+      <h3>Nach Kategorie</h3>
       <div class="bars" id="catBars"></div>
       <div class="verdict" id="budgetVerdict"></div>
     </div>
@@ -361,7 +382,18 @@ dialog h3 { margin: 0; font-family: var(--font-display); font-stretch: 112%; fon
   const KEY = 'haushaltsbuch.v1';
   const FRANCHISES = [300, 500, 1000, 1500, 2000, 2500];
   const SB_MAX = 700;
-  const EXP_CATS = ['Wohnen', 'Krankenkasse', 'Versicherungen', 'Steuern', 'Lebensmittel', 'Auswärts essen', 'Mobilität', 'Rechnungen', 'Freizeit', 'Sparen', 'Diverses'];
+  const EXP_CATS = ['Wohnen', 'Krankenkasse', 'Versicherungen', 'Steuern', 'Rechnungen', 'Mobilität', 'Lebensmittel', 'Auswärts essen', 'Freizeit', 'Kleider', 'Diverses', 'Ferien', 'Anschaffungen', 'Sparen'];
+  const GROUPS = [
+    { id: 'fix', name: 'Fixkosten', c: '--s1', target: 50, hint: 'jeden Monat gleich, z. B. Miete, Krankenkasse, Abos' },
+    { id: 'var', name: 'Variable Kosten', c: '--s2', target: 30, hint: 'schwankt, z. B. Essen, Ausgang, Kleider' },
+    { id: 'rueck', name: 'Rückstellungen', c: '--s3', target: null, hint: 'Geld für später, z. B. Ferien, Anschaffungen' },
+    { id: 'spar', name: 'Sparen', c: '--s4', target: 20, hint: 'z. B. Säule 3a, Sparkonto' },
+  ];
+  const CAT_GROUP = { Wohnen: 'fix', Krankenkasse: 'fix', Versicherungen: 'fix', Steuern: 'fix', Rechnungen: 'fix', Mobilität: 'fix', Abos: 'fix',
+    Lebensmittel: 'var', 'Auswärts essen': 'var', Freizeit: 'var', Kleider: 'var', Diverses: 'var', 'Überweisungen': 'var',
+    Ferien: 'rueck', Anschaffungen: 'rueck', Sparen: 'spar' };
+  const groupOf = e => e.group || CAT_GROUP[e.cat] || 'var';
+  const gById = id => GROUPS.find(g => g.id === id);
   const ABO_CATS = ['Streaming', 'Telefon & Internet', 'Fitness', 'Zeitung & Medien', 'Software', 'Mobilität', 'Diverses'];
   const PERIODS = { m: { name: 'monatlich', months: 1 }, q: { name: 'vierteljährlich', months: 3 }, y: { name: 'jährlich', months: 12 } };
 
@@ -402,6 +434,8 @@ dialog h3 { margin: 0; font-family: var(--font-display); font-stretch: 112%; fon
         { id: uid(), name: 'Lebensmittel', cat: 'Lebensmittel', amount: 650, period: 'm', example: true },
         { id: uid(), name: 'GA / Halbtax und Billette', cat: 'Mobilität', amount: 120, period: 'm', example: true },
         { id: uid(), name: 'Ausgang und Hobbys', cat: 'Freizeit', amount: 300, period: 'm', example: true },
+        { id: uid(), name: 'Kleider und Schuhe', cat: 'Kleider', amount: 80, period: 'm', example: true },
+        { id: uid(), name: 'Ferien', cat: 'Ferien', amount: 2400, period: 'y', example: true },
         { id: uid(), name: 'Säule 3a', cat: 'Sparen', amount: 7258, period: 'y', example: true },
       ],
       abos: [
@@ -428,6 +462,11 @@ dialog h3 { margin: 0; font-family: var(--font-display); font-stretch: 112%; fon
   const aboMonthly = a => a.active ? monthly(a.price, a.period) : 0;
   const aboTotalM = () => S.abos.reduce((s, a) => s + aboMonthly(a), 0);
   const incomeM = () => S.income.reduce((s, i) => s + monthly(i.amount, i.period), 0);
+  function groupSums() {
+    const r = { fix: aboTotalM(), var: 0, rueck: 0, spar: 0 };
+    S.expenses.forEach(e => { r[groupOf(e)] += monthly(e.amount, e.period); });
+    return r;
+  }
   const expensesM = () => S.expenses.reduce((s, e) => s + monthly(e.amount, e.period), 0) + aboTotalM();
 
   function nextDeadline(a) {
@@ -491,13 +530,20 @@ dialog h3 { margin: 0; font-family: var(--font-display); font-stretch: 112%; fon
       <span class="sub">${PERIODS[i.period].name}</span></button></li>`).join('') : '<li class="empty">Noch keine Einnahmen. Füge deinen Lohn hinzu.</li>';
 
     const exps = [...S.expenses].sort((a, b) => EXP_CATS.indexOf(a.cat) - EXP_CATS.indexOf(b.cat));
-    let html = exps.map(e => `<li><button class="row" data-edit="expense" data-id="${e.id}">
-      <span class="name">${esc(e.name)}${exTag(e)}</span><span class="amt">${periodAmt(e.amount, e.period)}</span>
-      <span class="sub">${esc(e.cat)} · ${PERIODS[e.period].name}</span></button></li>`).join('');
     const ab = aboTotalM();
-    html += `<li><button class="row auto" data-goto="abos">
-      <span class="name">Abos</span><span class="amt">${money(ab)}</span>
-      <span class="sub">Automatisch aus dem Register Abos</span></button></li>`;
+    const gsum = groupSums();
+    let html = '';
+    for (const g of GROUPS) {
+      const items = exps.filter(e => groupOf(e) === g.id);
+      if (!items.length && !(g.id === 'fix' && ab)) continue;
+      html += `<li class="ghead" style="--c:var(${g.c})"><span><i></i>${g.name}</span><span class="num">${money(gsum[g.id])} / Mt.</span></li>`;
+      html += items.map(e => `<li><button class="row" data-edit="expense" data-id="${e.id}">
+        <span class="name">${esc(e.name)}${exTag(e)}</span><span class="amt">${periodAmt(e.amount, e.period)}</span>
+        <span class="sub">${esc(e.cat)} · ${PERIODS[e.period].name}</span></button></li>`).join('');
+      if (g.id === 'fix' && ab) html += `<li><button class="row auto" data-goto="abos">
+        <span class="name">Abos</span><span class="amt">${money(ab)}</span>
+        <span class="sub">Automatisch aus dem Register Abos</span></button></li>`;
+    }
     $('expList').innerHTML = html;
     $('expTotal').textContent = money(expensesM());
 
@@ -511,10 +557,26 @@ dialog h3 { margin: 0; font-family: var(--font-display); font-stretch: 112%; fon
     $('catBars').innerHTML = entries.length ? entries.map(([c, v]) => {
       const pct = inc ? Math.round(v / inc * 100) : 0;
       return `<div class="bar"><span class="lbl">${esc(c)}</span>
-        <span class="track"><span class="seg" style="--c:var(--s1);width:${v / max * 100}%" data-tip="${esc(c)}<br><span class='num'>${money(v)}</span> pro Monat · ${pct} %"></span></span>
+        <span class="track"><span class="seg" style="--c:var(${gById(CAT_GROUP[c] || 'var').c});width:${v / max * 100}%" data-tip="${esc(c)} · ${gById(CAT_GROUP[c] || 'var').name}<br><span class='num'>${money(v)}</span> pro Monat · ${pct} %"></span></span>
         <span class="val">${money0(v)} · ${pct} %</span></div>`;
     }).join('') : '<p class="empty">Noch keine Ausgaben erfasst.</p>';
     bindTips($('catBars'));
+
+    // Aufteilung nach Art
+    const gs = groupSums();
+    const total = expensesM();
+    const base = Math.max(inc, total, 1);
+    const freeAmt = Math.max(0, inc - total);
+    const parts = GROUPS.map(g => ({ g, v: gs[g.id] })).filter(x => x.v > 0);
+    const pctOf = v => inc ? Math.round(v / inc * 100) : 0;
+    $('split').innerHTML = parts.map(x => `<span style="--c:var(${x.g.c});width:${x.v / base * 100}%" data-tip="${x.g.name}<br><span class='num'>${money(x.v)}</span> · ${pctOf(x.v)} %"></span>`).join('')
+      + (freeAmt > 0 ? `<span class="free" style="width:${freeAmt / base * 100}%" data-tip="Frei verfügbar<br><span class='num'>${money(freeAmt)}</span> · ${pctOf(freeAmt)} %"></span>` : '');
+    $('split').setAttribute('aria-label', parts.map(x => `${x.g.name} ${pctOf(x.v)} Prozent`).join(', '));
+    bindTips($('split'));
+    $('glegend').innerHTML = GROUPS.map(g => `<div title="${g.hint}"><i style="--c:var(${g.c})"></i><span>${g.name} <span class="hint">· ${g.hint}</span></span><span class="num">${money0(gs[g.id])}</span><span class="num pct">${pctOf(gs[g.id])} %</span></div>`).join('')
+      + `<div><i class="free"></i><span>Frei verfügbar</span><span class="num">${money0(inc - total)}</span><span class="num pct">${pctOf(inc - total)} %</span></div>`;
+    const needs = pctOf(gs.fix), wants = pctOf(gs.var), save = pctOf(gs.spar + gs.rueck + Math.max(0, inc - total));
+    $('rule').innerHTML = inc ? `<strong>Faustregel 50/30/20:</strong> höchstens 50 % Fixkosten, 30 % variable Kosten, mindestens 20 % sparen oder zurücklegen. Bei dir: ${needs} % · ${wants} % · ${save} %.` : '';
 
     const free = inc - expensesM();
     const v = $('budgetVerdict');
@@ -615,7 +677,7 @@ dialog h3 { margin: 0; font-family: var(--font-display); font-stretch: 112%; fon
     ['Rechnungen', ['intrum', 'ebill', 'rechnung', 'serafe', 'billag', 'ewz', 'ekz', 'steueramt', 'stadt zürich', 'gemeinde']],
     ['Freizeit', ['kino', 'pathe', 'kitag', 'ticketcorner', 'eventfrog', 'decathlon', 'ochsner', 'orell', 'thalia', 'ex libris', 'galaxus', 'digitec', 'zalando', 'h&m', 'zara']],
   ];
-  const ACT_CATS = ['Lebensmittel', 'Auswärts essen', 'Mobilität', 'Abos', 'Rechnungen', 'Krankenkasse', 'Wohnen', 'Versicherungen', 'Steuern', 'Freizeit', 'Sparen', 'Überweisungen', 'Diverses'];
+  const ACT_CATS = ['Lebensmittel', 'Auswärts essen', 'Mobilität', 'Abos', 'Rechnungen', 'Krankenkasse', 'Wohnen', 'Versicherungen', 'Steuern', 'Freizeit', 'Kleider', 'Ferien', 'Anschaffungen', 'Sparen', 'Überweisungen', 'Diverses'];
   const IN_CATS = ['Einnahmen', 'Übertrag eigenes Konto'];
 
   const num = s => Number(String(s).replace(/['’\s]/g, '').replace(/,(\d{2})$/, '.$1').replace(/,/g, ''));
@@ -849,13 +911,16 @@ dialog h3 { margin: 0; font-family: var(--font-display); font-stretch: 112%; fon
     }).join('');
     bindTips($('cmpBars'));
 
+    const actG = { fix: 0, var: 0, rueck: 0, spar: 0 };
+    out.forEach(t => { actG[CAT_GROUP[t.cat] || 'var'] += t.amount; });
+    const gLine = GROUPS.filter(g => actG[g.id] > 0).map(g => `${g.name} ${money0(actG[g.id])}`).join(' · ');
     const overs = cats.filter(c => bud[c] > 0 && act[c] > bud[c]);
     const top = cats[0];
     const v = $('cmpVerdict');
     v.style.borderLeftColor = overs.length ? 'var(--bad)' : 'var(--good)';
     v.innerHTML = overs.length
-      ? `<strong>Über dem Budget: ${overs.map(esc).join(', ')}</strong><br><span class="hint">${overs.map(c => `${esc(c)} ${money0(act[c] - bud[c])} zu viel`).join(' · ')}. Am meisten ging für ${esc(top)} weg (${money0(act[top])}).</span>`
-      : `<strong>Alles im Budget.</strong><br><span class="hint">Am meisten ging für ${esc(top)} weg (${money0(act[top])}). Kategorien ohne schwarzen Strich haben noch kein Budget. Du kannst eines im Register Budget erfassen.</span>`;
+      ? `<strong>Über dem Budget: ${overs.map(esc).join(', ')}</strong><br><span class="hint">${overs.map(c => `${esc(c)} ${money0(act[c] - bud[c])} zu viel`).join(' · ')}. Am meisten ging für ${esc(top)} weg (${money0(act[top])}).<br>${gLine}</span>`
+      : `<strong>Alles im Budget.</strong><br><span class="hint">Am meisten ging für ${esc(top)} weg (${money0(act[top])}). Kategorien ohne schwarzen Strich haben noch kein Budget. Du kannst eines im Register Budget erfassen.<br>${gLine}</span>`;
 
     // Wiederkehrende Zahlungen über mehrere Monate
     const byKey = {};
@@ -922,6 +987,7 @@ dialog h3 { margin: 0; font-family: var(--font-display); font-stretch: 112%; fon
     expense: { title: 'Ausgabe', list: () => S.expenses, fields: [
       { k: 'name', label: 'Bezeichnung', type: 'text', ph: 'z. B. Miete' },
       { k: 'cat', label: 'Kategorie', type: 'select', options: EXP_CATS },
+      { k: 'group', label: 'Art', type: 'group' },
       { k: 'amount', label: 'Betrag in CHF', type: 'money' },
       { k: 'period', label: 'Rhythmus', type: 'period' },
     ] },
@@ -945,6 +1011,7 @@ dialog h3 { margin: 0; font-family: var(--font-display); font-stretch: 112%; fon
       case 'select': return `<div class="field"><label for="${id}">${f.label}</label><select id="${id}">${f.options.map(o => `<option${o === v ? ' selected' : ''}>${o}</option>`).join('')}</select></div>`;
       case 'period': return `<div class="field"><label for="${id}">${f.label}</label><select id="${id}">${Object.entries(PERIODS).map(([k, p]) => `<option value="${k}"${k === v ? ' selected' : ''}>${p.name}</option>`).join('')}</select></div>`;
       case 'notice': return `<div class="field"><label for="${id}">${f.label}</label><select id="${id}">${[0, 1, 2, 3, 6].map(n => `<option value="${n}"${n === Number(v) ? ' selected' : ''}>${n === 0 ? 'jederzeit bis zur Verlängerung' : `${n} Monat${n > 1 ? 'e' : ''} vorher`}</option>`).join('')}</select></div>`;
+      case 'group': return `<div class="field"><label for="${id}">${f.label}</label><select id="${id}">${GROUPS.map(g => `<option value="${g.id}"${g.id === v ? ' selected' : ''}>${g.name}</option>`).join('')}</select></div>`;
       case 'check': return `<label class="check"><input id="${id}" type="checkbox"${v ? ' checked' : ''}> ${f.label}</label>`;
     }
   }
@@ -955,7 +1022,9 @@ dialog h3 { margin: 0; font-family: var(--font-display); font-stretch: 112%; fon
     editing = { kind, id: item ? item.id : null };
     const defaults = { period: 'm', cat: kind === 'abo' ? ABO_CATS[0] : EXP_CATS[EXP_CATS.length - 1], renew: iso(addMonths(today(), 1)), notice: 0, active: true };
     $('dlgTitle').textContent = item ? `${spec.title} bearbeiten` : { income: 'Neue Einnahme', expense: 'Neue Ausgabe', abo: 'Neues Abo' }[kind];
-    $('dlgFields').innerHTML = spec.fields.map(f => fieldHtml(f, item ? item[f.k] : defaults[f.k])).join('');
+    if (kind === 'expense') defaults.group = CAT_GROUP[defaults.cat];
+    $('dlgFields').innerHTML = spec.fields.map(f => fieldHtml(f, item ? (f.k === 'group' ? groupOf(item) : item[f.k]) : defaults[f.k])).join('');
+    if (kind === 'expense') $('f-cat').addEventListener('change', e => { $('f-group').value = CAT_GROUP[e.target.value] || 'var'; });
     $('err').textContent = '';
     const del = $('delBtn'); del.hidden = !item; del.classList.remove('armed'); del.textContent = 'Löschen';
     dlg.showModal ? dlg.showModal() : dlg.setAttribute('open', '');
